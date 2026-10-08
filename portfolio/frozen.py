@@ -3,7 +3,7 @@
 ## 为什么这个模块必须存在
 
 仓库里出过的事故：`Stragety/StockPickingStrategy/*/backtest_v*.py` 的
-`DATA_DIR` 被写死成 `d:\\02Project\\QMT-export\\strategy_v6_final\\data`
+`DATA_DIR` 被写死成 `d:\\02Project\\QMT-expert\\strategy_v6_final\\data`
 （在本机根本不存在），而研究结论却引用着那些脚本产出的文件。
 根因是**逻辑与路径双双复制**。
 

@@ -3,7 +3,7 @@
 import re
 from collections import defaultdict
 
-with open('C:/MyW/QMT-Export/Log/log20260806-2', 'r', encoding='utf-8') as f:
+with open('C:/MyW/QMT-Expert/Log/log20260806-2', 'r', encoding='utf-8') as f:
     content = f.read()
 
 buys = []

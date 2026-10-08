@@ -1,6 +1,6 @@
 ---
 name: qmt-safe-commit
-description: Safely review, verify, stage, and commit changes in the QMT-export repository. Use when asked to commit QMT strategies, MiniQMT infrastructure, backtest code, tests, analysis, or documentation. Do not use for stash creation or restoration unless explicitly requested.
+description: Safely review, verify, stage, and commit changes in the QMT-expert repository. Use when asked to commit QMT strategies, MiniQMT infrastructure, backtest code, tests, analysis, or documentation. Do not use for stash creation or restoration unless explicitly requested.
 ---
 
 # QMT Safe Commit

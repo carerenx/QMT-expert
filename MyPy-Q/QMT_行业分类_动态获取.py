@@ -37,7 +37,7 @@ QMT 行业分类动态获取模块
 
   方式2 — 直接复制 build_sector_map() 函数到策略文件中
 
-作者：QMT-Export
+作者：QMT-Expert
 日期：2026-08-06
 """
 

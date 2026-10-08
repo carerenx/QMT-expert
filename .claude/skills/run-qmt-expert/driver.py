@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-QMT-Export Smoke Test Driver
+QMT-Expert Smoke Test Driver
 =============================
 Validates that the backtest system works end-to-end: imports, data loading,
 strategy execution, and performance analysis.
 
 Usage:
-    python .claude/skills/run-qmt-export/driver.py          # full smoke test
-    python .claude/skills/run-qmt-export/driver.py --quick  # imports only (no backtest run)
-    python .claude/skills/run-qmt-export/driver.py --stock 600519.SH  # custom stock
+    python .claude/skills/run-qmt-expert/driver.py          # full smoke test
+    python .claude/skills/run-qmt-expert/driver.py --quick  # imports only (no backtest run)
+    python .claude/skills/run-qmt-expert/driver.py --stock 600519.SH  # custom stock
 
 Exit code 0 = all checks passed. Non-zero = first failing check.
 """
@@ -21,7 +21,7 @@ import time
 from datetime import datetime
 
 # Ensure project root is on sys.path
-# driver.py is at .claude/skills/run-qmt-export/driver.py → 4 levels up = project root
+# driver.py is at .claude/skills/run-qmt-expert/driver.py → 4 levels up = project root
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -235,13 +235,13 @@ def check_cache_dir():
 def main():
     global SKIP
     parser = argparse.ArgumentParser(
-        description='QMT-Export Smoke Test',
+        description='QMT-Expert Smoke Test',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python .claude/skills/run-qmt-export/driver.py
-  python .claude/skills/run-qmt-export/driver.py --quick
-  python .claude/skills/run-qmt-export/driver.py --stock 000001.SZ
+  python .claude/skills/run-qmt-expert/driver.py
+  python .claude/skills/run-qmt-expert/driver.py --quick
+  python .claude/skills/run-qmt-expert/driver.py --stock 000001.SZ
         """
     )
     parser.add_argument('--quick', action='store_true',
@@ -251,7 +251,7 @@ Examples:
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  QMT-Export Smoke Test")
+    print("  QMT-Expert Smoke Test")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Project: {PROJECT_ROOT}")
     print("=" * 60)

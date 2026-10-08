@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 # ============================================================
 CODE = '601869'
 NAME = '长飞光纤'
-OUTPUT_DIR = r'd:\02Project\QMT-export\data\601869_t0_backtest'
+OUTPUT_DIR = r'd:\02Project\QMT-expert\data\601869_t0_backtest'
 INITIAL_CAPITAL = 5_000_000
 COMMISSION = 0.00025
 STAMP_TAX = 0.001

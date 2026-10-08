@@ -22,7 +22,7 @@ r"""每日采集分钟级资金流，为「订单流信号」积累可回测样�
 自动化的两种方式：
 
 1) Windows 任务计划（推荐）——每个工作日 15:10 运行：
-   schtasks /create /tn QMT_FF_Collect /sc weekly /d MON,TUE,WED,THU,FRI /st 15:10 /tr "python C:/MyW/QMT-Export/analysis/collect_fund_flow_daily.py"
+   schtasks /create /tn QMT_FF_Collect /sc weekly /d MON,TUE,WED,THU,FRI /st 15:10 /tr "python C:/MyW/QMT-Expert/analysis/collect_fund_flow_daily.py"
 
 2) 手动：收盘后自己跑一次即可。
 """

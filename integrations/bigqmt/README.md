@@ -1,4 +1,4 @@
-# 在 QMT-export 中用 miniQMT 策略接入大 QMT
+# 在 QMT-expert 中用 miniQMT 策略接入大 QMT
 
 接入链路：`run_bigqmt.py → 本目录 src/xtquant 兼容层 → ZeroMQ RPC → 大 QMT 内置 Python → 行情 / 账户 / 委托 / 成交回报`。
 
@@ -6,7 +6,7 @@
 
 ## 1. 外部 Python 环境
 
-在 QMT-export 根目录执行（已有 `.venv-bigqmt` 时跳过创建）：
+在 QMT-expert 根目录执行（已有 `.venv-bigqmt` 时跳过创建）：
 
 ```powershell
 python -m venv .venv-bigqmt
@@ -53,7 +53,7 @@ python -m venv .venv-bigqmt
 
 ## 4. 检查与运行
 
-以下命令均在 QMT-export 根目录执行：
+以下命令均在 QMT-expert 根目录执行：
 
 ```powershell
 # 仅检查本地文件、账号、兼容层和传输依赖，不连接服务
@@ -88,4 +88,4 @@ v41 保留原有实盘确认流程。切换同一策略到大 QMT 前，应停�
 
 测试使用模拟 QMT 对象和本机测试传输，不需要真实账户。全套离线验证 484 项通过，4 项因未安装 `bson`、`pyarrow`、`msgpack` 而跳过；其后新增探测超时/错账号测试，入口专项共 10 项通过。`--check` 仅证明本地接入准备完成，`--probe` 成功才证明服务端可访问；真实行情、成交回报和终端内置 Python 兼容性仍需大 QMT 联调验证。
 
-源码来自 `D:\02Project\xtquant_big_convert_CR` 工作树，保留 [MIT 许可证](LICENSE) 和 [源文件哈希清单](UPSTREAM.json)。迁入桥接包、兼容层、运行入口及对应测试；未迁入独立回测引擎、基准测试脚本或私有配置。集成修改仅涉及相对启动路径、配置模板和 QMT-export 新入口。运行不再依赖原项目目录。
+源码来自 `D:\02Project\xtquant_big_convert_CR` 工作树，保留 [MIT 许可证](LICENSE) 和 [源文件哈希清单](UPSTREAM.json)。迁入桥接包、兼容层、运行入口及对应测试；未迁入独立回测引擎、基准测试脚本或私有配置。集成修改仅涉及相对启动路径、配置模板和 QMT-expert 新入口。运行不再依赖原项目目录。
