@@ -14,7 +14,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from analysis.compare_v51_v39_minute import Broker, Clock, OUT, load_strategy
+from output.analysis.compare_v51_v39_minute import Broker, Clock, OUT, load_strategy
 from backtest.dayt_strict import StrictBroker
 
 

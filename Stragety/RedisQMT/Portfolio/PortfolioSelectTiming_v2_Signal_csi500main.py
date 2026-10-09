@@ -37,14 +37,14 @@ F10 那个 +18% 看着最好，但**它的机制对不上** —— 引擎排出�
 
 F7 是唯一机制自洽的，但对得上的代价是**它小到无法与零区分**（t = 0.34）。
 
-**所以 `portfolio/frozen.py` 的 `FROZEN` 仍是 `None`，本脚本调用即报错。**
+**所以 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 的 `FROZEN` 仍是 `None`，本脚本调用即报错。**
 用户已确认选择「不冻结」。要打开需自行填 `FROZEN` —— 但请先读
 `analysis/csi500_main_study_20260920/README.md`。
 
 ## 本脚本不做的事
 
 * 不调用 `order_shares` / `passorder` / 任何下单接口
-* 不修改 `portfolio/frozen.py` 或任何回测产物
+* 不修改 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 或任何回测产物
 * 只往 `output/` 写信号文件
 
 用法：
@@ -66,8 +66,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import frozen, transforms                        # noqa: E402
-from portfolio.panel import PanelData                           # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import frozen, transforms                        # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio.panel import PanelData                           # noqa: E402
 
 
 OUTPUT = Path(__file__).resolve().parent / "output"
@@ -420,7 +420,7 @@ def main() -> None:
             "详见 analysis/csi500_main_study_20260920/README.md 与\n"
             "     Stragety/RedisQMT/Portfolio/StrategicResearchDirections"
             "AndEffectivenessRecords.md\n\n"
-            "要打开请在 `portfolio/frozen.py` 填 FROZEN。")
+            "要打开请在 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 填 FROZEN。")
 
     print(f"连接桥接（asof = {args.asof or '最新'}）...", flush=True)
     xtdata = connect_bridge()

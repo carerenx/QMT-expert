@@ -14,7 +14,7 @@
 
 ## 两条硬性防分叉措施
 
-1. **逻辑只有一份实现**：因子计算与权重构造全部走 `portfolio/frozen.py`。
+1. **逻辑只有一份实现**：因子计算与权重构造全部走 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py`。
    本脚本**不允许自己重新实现一遍因子** —— 仓库出过的 `DATA_DIR` 写死
    陈旧路径那类事故，根因就是逻辑与路径双双复制。
 2. **启动即失败的一致性断言**：活数据算不出与回测一致的值，
@@ -23,7 +23,7 @@
 ## 本脚本不做的事
 
 * 不调用 `order_shares` / `passorder` / 任何下单接口
-* 不修改 `portfolio/frozen.py` 或任何回测产物
+* 不修改 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 或任何回测产物
 * 只往 `output/` 写信号文件
 """
 
@@ -40,8 +40,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import frozen, timing                            # noqa: E402
-from portfolio.panel import PanelData                           # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import frozen, timing                            # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio.panel import PanelData                           # noqa: E402
 
 
 OUTPUT = Path(__file__).resolve().parent / "output"
@@ -243,7 +243,7 @@ def main() -> None:
     if not frozen.is_frozen():
         raise SystemExit(
             "配置未冻结 —— 按预注册第七节，Stage 4 结束并提交之后才能出信号。\n"
-            "见 `portfolio/frozen.py`。")
+            "见 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py`。")
     if not PANEL.exists():
         raise SystemExit(f"缺冻结面板 {PANEL}")
 

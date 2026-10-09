@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT))
 import pandas as pd
 from backtest.dayt_benchmark import GOLDEN,verify
 from backtest.dayt_registry import STRATEGIES
-from analysis.compare_v51_v39_minute import replay,DAYT
+from output.analysis.compare_v51_v39_minute import replay,DAYT
 
 
 def main():

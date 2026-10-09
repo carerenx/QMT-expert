@@ -19,7 +19,7 @@
 - **做法**：`analysis/backtest_longhold_v2_vs_portfolio_20260920.py`
   逐日重放 v2 的逻辑（`classify_regime` → `decide_allocation` →
   `target_order`），复权价、T 收盘算信号 T+1 开盘成交、成本用
-  `portfolio/costs.py`（滑点 5bp）。窗口 2023-09-01 ~ 2026-09-18。
+  `Stragety/RedisQMT/Portfolio/portfolio/costs.py`（滑点 5bp）。窗口 2023-09-01 ~ 2026-09-18。
 - **证据**：
 
   | | 年化 | 夏普 | 最大回撤 | 平均仓位 |

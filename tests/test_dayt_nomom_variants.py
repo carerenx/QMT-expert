@@ -9,7 +9,7 @@ from backtest.dayt_registry import STRATEGIES
 
 class NoMomVariantsTests(unittest.TestCase):
     def test_v39_nomom_loop_yields_to_offline_clock(self):
-        from analysis.compare_v51_v39_minute import load_strategy
+        from output.analysis.compare_v51_v39_minute import load_strategy
         self.assertTrue(inspect.isgeneratorfunction(load_strategy('v39_nomom').StrategyRunner.run))
 
     def test_only_mom_switch_changes(self):

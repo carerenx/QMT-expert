@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from datetime import datetime
 import tempfile
 from pathlib import Path
-from analysis.compare_v51_v39_minute import load_strategy
+from output.analysis.compare_v51_v39_minute import load_strategy
 
 s=load_strategy('v52')
 

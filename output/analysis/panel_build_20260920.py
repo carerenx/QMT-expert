@@ -37,7 +37,7 @@
 冻结价）。所以先按「原始 `close` 有限」过滤，只保留**真实成交日**。
 
 引擎侧对应要求：持仓股停牌时盯市要**前向填充**收盘价，
-否则持仓会被算成 0 市值。见 `portfolio/engine.py` 的 `close_mx.ffill()`。
+否则持仓会被算成 0 市值。见 `Stragety/RedisQMT/Portfolio/portfolio/engine.py` 的 `close_mx.ffill()`。
 
 ## ST：**不建模**（推导已证伪）
 

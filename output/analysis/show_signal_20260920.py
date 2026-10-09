@@ -2,7 +2,7 @@
 
 ## 为什么需要这个脚本
 
-`portfolio/frozen.py` 的 `FROZEN` 是 `None`，实盘脚本会**拒绝出信号** ——
+`Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 的 `FROZEN` 是 `None`，实盘脚本会**拒绝出信号** ——
 这是设计正确的行为，用户已确认选择「不冻结」。
 
 但「拒绝」不能回答「它到底会买什么」。本脚本在**内存里**挂配置，
@@ -36,7 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import frozen                                    # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import frozen                                    # noqa: E402
 
 SIGNAL = (ROOT / "Stragety/RedisQMT/Portfolio"
           / "PortfolioSelectTiming_v2_Signal_csi500main.py")
@@ -128,7 +128,7 @@ def main() -> None:
         print(flush=True)
 
     frozen.FROZEN = None
-    print("（本脚本未修改 `portfolio/frozen.py`；上述输出不构成买入建议）")
+    print("（本脚本未修改 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py`；上述输出不构成买入建议）")
 
 
 if __name__ == "__main__":

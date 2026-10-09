@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from analysis.compare_v51_v39_minute import Broker, Clock, load_strategy, OUT
+from output.analysis.compare_v51_v39_minute import Broker, Clock, load_strategy, OUT
 from backtest.dayt_exchange import Exchange
 from backtest.dayt_registry import register_with_legacy_loader
 import pandas as pd

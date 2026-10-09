@@ -34,10 +34,10 @@ import json
 
 import pandas as pd
 
-from portfolio import factors as factor_lib
-from portfolio import transforms
-from portfolio.construct import select_holdings, target_weights
-from portfolio.panel import PanelData
+from Stragety.RedisQMT.Portfolio.portfolio import factors as factor_lib
+from Stragety.RedisQMT.Portfolio.portfolio import transforms
+from Stragety.RedisQMT.Portfolio.portfolio.construct import select_holdings, target_weights
+from Stragety.RedisQMT.Portfolio.portfolio.panel import PanelData
 
 
 # ─────────────────────── 冻结配置 ───────────────────────
@@ -46,7 +46,7 @@ FROZEN: dict | None = None
 
 # 期望的形状（填 FROZEN 时按这个键名填）：
 # {
-#   "factor":        "F2_reversal_1m",      # portfolio/factors.py 的键
+#   "factor":        "F2_reversal_1m",      # Stragety/RedisQMT/Portfolio/portfolio/factors.py 的键
 #   "treatment":     "size_neutral",        # raw | size_neutral
 #   "horizon_days":  20,                    # 只用于文档：因子本身的持有期口径
 #   "n_holdings":    30,
@@ -70,7 +70,7 @@ def require_frozen() -> dict:
     if FROZEN is None:
         raise RuntimeError(
             "配置尚未冻结。按预注册第七节，Stage 4 结束、在 IS 上选出唯一配置后"
-            "才能填 `portfolio/frozen.py` 的 FROZEN，提交后再跑 OOS-2。\n"
+            "才能填 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 的 FROZEN，提交后再跑 OOS-2。\n"
             "在此之前调用本模块会直接报错 —— 空配置静默产出结果比报错危险得多。")
     return FROZEN
 

@@ -70,6 +70,6 @@ def load_redis_strategy(name, adapter, logger=None):
 
 
 def register_with_legacy_loader():
-    from analysis import compare_v51_v39_minute as loader
+    from output.analysis import compare_v51_v39_minute as loader
     loader.FILES.update(STRATEGIES)
     return loader

@@ -1,5 +1,5 @@
 import unittest
-from analysis.compare_v51_v39_minute import Broker, Clock
+from output.analysis.compare_v51_v39_minute import Broker, Clock
 import pandas as pd
 from datetime import datetime
 

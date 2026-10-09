@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from analysis.compare_v51_v39_minute import load_strategy
+from output.analysis.compare_v51_v39_minute import load_strategy
 
 
 s = load_strategy('v53_nomom')

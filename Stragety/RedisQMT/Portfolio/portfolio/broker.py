@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from portfolio.costs import CostModel, round_lot
+from Stragety.RedisQMT.Portfolio.portfolio.costs import CostModel, round_lot
 
 
 @dataclass

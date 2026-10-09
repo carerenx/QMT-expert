@@ -1,6 +1,6 @@
 """冒烟测试：实盘脚本 v2 的管线能不能跑通（**不改 frozen.py**）。
 
-`portfolio/frozen.py` 的 `FROZEN` 是 `None`，所以实盘脚本会拒绝出信号 ——
+`Stragety/RedisQMT/Portfolio/portfolio/frozen.py` 的 `FROZEN` 是 `None`，所以实盘脚本会拒绝出信号 ——
 这是设计正确的行为。但「拒绝出信号」不能说明「管线是通的」，
 本脚本在**内存里**临时挂一个配置来验证全链路：
 
@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import frozen                                    # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import frozen                                    # noqa: E402
 
 SIGNAL = (ROOT / "Stragety/RedisQMT/Portfolio"
           / "PortfolioSelectTiming_v2_Signal_csi500main.py")

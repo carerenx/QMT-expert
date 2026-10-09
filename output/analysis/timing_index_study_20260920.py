@@ -2,7 +2,7 @@
 
 ## 这一步在测什么
 
-`portfolio/timing.py` 提供三种把指数 regime 映射成总仓位的规则。
+`Stragety/RedisQMT/Portfolio/portfolio/timing.py` 提供三种把指数 regime 映射成总仓位的规则。
 这个脚本**单独**评测它们，不掺选股，回答一个问题：
 
 > 光靠调总仓位，能不能改善风险调整后收益？
@@ -46,7 +46,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import metrics, timing                       # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import metrics, timing                       # noqa: E402
 
 
 OUT = ROOT / "analysis/timing_index_20260920"

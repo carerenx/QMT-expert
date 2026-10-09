@@ -15,7 +15,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from analysis import compare_v51_v39_minute as daily_replay
+from output.analysis import compare_v51_v39_minute as daily_replay
 from backtest import dayt_strict
 from backtest.dayt_registry import STRATEGIES
 

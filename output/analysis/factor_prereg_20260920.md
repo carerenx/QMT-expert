@@ -164,7 +164,7 @@ run_id, timestamp, config_hash, stage, IS_metric, OOS1_metric, note
 2. 只有**同时通过 A–E 五个闸门 + 随机对照**的因子进入 Stage B。
 3. Stage B 按预注册规则选出**唯一**配置：在 IS 上最大化净 Sharpe；
    若两个配置差 < 0.1，**取调仓周期更长的那个**（交易更少 = 更稳健）。
-4. 唯一配置写入 `portfolio/frozen.py`，**提交**，记录 `config_hash`。
+4. 唯一配置写入 `Stragety/RedisQMT/Portfolio/portfolio/frozen.py`，**提交**，记录 `config_hash`。
 5. 提交之后**恰好跑一次** OOS-2。看完不许改参数。
 6. **若 0 个因子通过 Stage A → 直接跳收尾**（Stage 6）。
    严禁放宽阈值、严禁事后加因子、严禁改符号。

@@ -36,7 +36,7 @@
 * 窗口 2023-09-01 ~ 2026-09-18（与组合研究同窗口）
 * 复权价（`adj_*`，含股息再投的总收益）
 * **T 收盘算信号、T+1 开盘成交**（与组合引擎同口径）
-* 成本：`portfolio/costs.py`，滑点 5bp
+* 成本：`Stragety/RedisQMT/Portfolio/portfolio/costs.py`，滑点 5bp
 * 基准：**买入持有 600584.SH**（这才是它的正确对照，不是中证500）
 
 用法：
@@ -55,8 +55,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from portfolio import metrics                                  # noqa: E402
-from portfolio.costs import CostModel                          # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio import metrics                                  # noqa: E402
+from Stragety.RedisQMT.Portfolio.portfolio.costs import CostModel                          # noqa: E402
 from Stragety.MiniQMT_Stragety.core.long_hold_allocation import (  # noqa: E402
     calculate_indicators, classify_regime)
 from Stragety.MiniQMT_Stragety.core.long_hold_allocation_v2 import (  # noqa: E402
@@ -237,7 +237,7 @@ def main() -> None:
         f"初始资金 {INITIAL:,.0f} 元。",
         "",
         "> **口径**：复权价（含股息再投）、T 收盘算信号 T+1 开盘成交、",
-        "> 成本用 `portfolio/costs.py`（佣金万2.5 + 印花税按日期 + 过户费按日期 + 滑点 5bp）。",
+        "> 成本用 `Stragety/RedisQMT/Portfolio/portfolio/costs.py`（佣金万2.5 + 印花税按日期 + 过户费按日期 + 滑点 5bp）。",
         "",
         "## 对照：买入持有",
         "",
