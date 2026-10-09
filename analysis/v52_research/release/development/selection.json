@@ -1,6 +1,0 @@
-{
-  "selected": null,
-  "reason": "No eligible candidate; invalid baseline or risk constraints failed",
-  "holdout_status": "NOT_RUN_BY_THIS_COMMAND",
-  "caution": "99 sessions were previously observed; not a genuinely unseen out-of-sample test"
-}

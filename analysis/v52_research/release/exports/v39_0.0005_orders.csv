@@ -1,9 +1,0 @@
-﻿order_id,signed_quantity,limit,submitted_event,label,traded_volume,traded_value,fee,order_status,reason,stock_code,order_sysid
-1,100,,11,MOM long,100,37390.0,18.695,56,,601869.SH,1
-2,100,,12,FWD-T buy,0,0.0,0.0,54,,601869.SH,2
-3,-100,,13,MOM stop-loss,100,36799.0,18.3995,56,,601869.SH,3
-4,100,,21,MOM long,100,36533.0,18.2665,56,,601869.SH,4
-5,-100,,105,MOM sellback,100,37127.0,18.5635,56,,601869.SH,5
-6,-100,,488,REV-T sell,100,38642.0,19.321,56,,601869.SH,6
-7,-100,,508,MOM short,100,39060.0,19.53,56,,601869.SH,7
-8,100,411.99,956,MOM force buyback,0,0.0,0.0,54,VOLUME_CAP,601869.SH,8
