@@ -37,8 +37,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "Stragety/MiniQMT_Stragety") not in sys.path:
+    sys.path.insert(0, str(ROOT / "Stragety/MiniQMT_Stragety"))
+
+import core.peak_mode as PK
+
 OUT = ROOT / "analysis/screener_lab_20260920"
 
 ATR_PERIOD = 14
@@ -57,26 +61,41 @@ FEE_BUY = 0.0005          # 买入：佣金 0.05%
 
 # ─────────────────────────── 风控开关 ───────────────────────────
 
-def rolling_context(high, low, close):
-    """每只股票只算一次的滚动量：ATR、MA20、以及开盘价代理（昨收）。
+def rolling_context(high, low, close, peak_window=None):
+    """每只股票只算一次的滚动量：ATR、MA20、滚动 peak、以及开盘价代理（昨收）。
 
-    把 ATR/MA 从内层循环里提出来，内层就只剩标量比较 —— 全市场
+    把 ATR/MA/peak 从内层循环里提出来，内层就只剩标量比较 —— 全市场
     6 万个采样点 × 126 天 = 760 万次迭代，不预计算是跑不动的。
+
+    `peak_window` 非 None 时额外返回滚动窗口最高收盘价（供 `ROLLING` 模式用）。
     """
     h = pd.Series(high)
     l = pd.Series(low)
     c = pd.Series(close)
     atr = (h - l).rolling(ATR_PERIOD).mean().to_numpy()
     ma = c.rolling(MA_REENTRY).mean().to_numpy()
-    return atr, ma
+    peak = (c.rolling(int(peak_window), min_periods=1).max().to_numpy()
+            if peak_window else None)
+    return atr, ma, peak
 
 
-def overlay_excess(atr, ma, close, start: int, end: int) -> float | None:
+def overlay_excess(atr, ma, close, start: int, end: int,
+                   peak_mode: str = "MARKET", peak_roll=None) -> float | None:
     """v4 的日线开关在 [start, end) 上的超额收益（相对一直持有，含手续费）。
 
     与策略文件里的规则一致：昨收 < peak − 3×ATR 清仓，已清仓且昨收 > MA20 回场。
     信号用**截至昨日**的收盘算，今日成交 —— 与实盘的时序一致，无未来函数。
+
+    `peak_mode` 的语义定义在 `core/peak_mode.py`，三种都支持：`MARKET`（v4 原版，
+    peak 永不重置）、`REENTRY`（回场时重置为回场价）、`ROLLING<N>`（近 N 日最高
+    收盘，需同时传入预算好的 `peak_roll`）。默认必须是 `MARKET`，改动本函数要
+    保证默认路径逐位可复现。
     """
+    from core.peak_mode import ROLLING, parse_peak_mode
+
+    kind, _ = parse_peak_mode(peak_mode)
+    if kind == ROLLING and peak_roll is None:
+        raise ValueError("ROLLING peak mode needs a precomputed peak_roll")
     n = end - start
     if n < 40 or start < ATR_PERIOD or start < MA_REENTRY:
         return None
@@ -91,7 +110,9 @@ def overlay_excess(atr, ma, close, start: int, end: int) -> float | None:
     for i in range(n):
         pos[i] = p
         j = start + i
-        if px[i] > peak:
+        if kind == ROLLING:
+            peak = float(peak_roll[j])   # 窗口最高值，随价格下移
+        elif px[i] > peak:
             peak = px[i]
         a = atr[j]
         if p > 0.0:
@@ -99,6 +120,8 @@ def overlay_excess(atr, ma, close, start: int, end: int) -> float | None:
                 p, cost = 0.0, cost + FEE_SELL
         elif ma[j] == ma[j] and px[i] > ma[j]:
             p, cost = 1.0, cost + FEE_BUY
+            if kind == "REENTRY":
+                peak = px[i]        # 新仓位从回场这根 bar 重新记高水位
     strat = float(np.prod(1 + pos[:-1] * rets) - 1) - cost
     hold = float(px[-1] / px[0] - 1)
     return strat - hold
@@ -106,7 +129,7 @@ def overlay_excess(atr, ma, close, start: int, end: int) -> float | None:
 
 # ─────────────────────────── 面板构建 ───────────────────────────
 
-def build_panel(panel: pd.DataFrame) -> pd.DataFrame:
+def build_panel(panel: pd.DataFrame, peak_mode: str = "MARKET") -> pd.DataFrame:
     rows = []
     for code, g in panel.groupby("code", sort=False):
         g = g.sort_values("time")
@@ -117,7 +140,9 @@ def build_panel(panel: pd.DataFrame) -> pd.DataFrame:
         n = len(close)
         if n < MIN_HISTORY + STEP + FWD:
             continue
-        atr_arr, ma_arr = rolling_context(high, low, close)
+        kind, window = PK.parse_peak_mode(peak_mode)
+        atr_arr, ma_arr, peak_arr = rolling_context(
+            high, low, close, window if kind == PK.ROLLING else None)
         for t in range(MIN_HISTORY, n - FWD, STEP):
             window = close[t - ER_WINDOW:t + 1]
             moves = np.abs(np.diff(window)).sum()
@@ -144,7 +169,8 @@ def build_panel(panel: pd.DataFrame) -> pd.DataFrame:
             amt = float(amount[max(0, t - 20):t + 1].mean())
             if amt < MIN_AMOUNT:
                 continue
-            ex = overlay_excess(atr_arr, ma_arr, close, t, t + FWD)
+            ex = overlay_excess(atr_arr, ma_arr, close, t, t + FWD,
+                                peak_mode=peak_mode, peak_roll=peak_arr)
             if ex is None:
                 continue
             rows.append({

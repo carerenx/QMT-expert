@@ -17,6 +17,12 @@ Log/
 
 tests/
 
+# Keep the v0565 regression suite versioned while other generated/local tests
+# remain covered by the repository's existing tests ignore policy.
+!tests/
+tests/*
+!tests/test_dayt_v0565_epoch_peak_multivote.py
+
 /127.0.0.1
 
 # 面板数据（重建产物，体积 ~1.7GB）。用 analysis/panel_*_20xx/ 下的脚本

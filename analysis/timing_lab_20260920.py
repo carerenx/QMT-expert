@@ -151,14 +151,34 @@ LABELS = {
 
 # ─────────────────────────── 引擎 ───────────────────────────
 
-def simulate(daily: pd.DataFrame, rule, start: str) -> dict:
+def simulate(daily: pd.DataFrame, rule, start: str,
+             peak_mode: str = "MARKET") -> dict:
     """信号用截至昨日的收盘算，今日**开盘**成交。无未来函数。
 
     只在 `start` 之后开仓/计价；`start` 之前的日子用来给规则**预热**
     （均线、ATR、历史最高价都需要历史）。这一点是必须的 ——
     如果把每个区间独立跑，规则的「前期最高价」会从区间首日重新开始，
     Q3 就看不到 6 月那个顶，三个区间比的就不是同一条规则。
+
+    `peak_mode` 决定引擎交给规则的 `peak` 是什么（规则本身不改）：
+
+      * ``MARKET``  —— 全序列收盘价的运行最高值，**永不重置**。原版行为，
+                       也是默认值；默认路径必须逐位可复现。
+      * ``REENTRY`` —— 每当目标仓位从 0 翻到 1，peak 重置为**当日收盘价**。
+                       语义是「这是新仓位，高水位从它自己的入场算起」。重置
+                       发生在信号日（成交在次日开盘），与 `screener_lab` 的
+                       `overlay_excess` 取同一根 bar，两处口径一致。
+      * ``ROLLING<N>`` —— 近 N 个交易日收盘价的最高值。窗口随价格下移，
+                       只有比窗口更快的下跌才会触发。
+
+    注意 `peak` 同时喂给 `rule_atr_trail` 和 `rule_dd_derisk`，所以本参数
+    对两条规则都生效 —— 它们本来就是同一套 peak 语义的两个使用者。
     """
+    from core.peak_mode import ROLLING, parse_peak_mode, rolling_peak_series
+
+    kind, window = parse_peak_mode(peak_mode)
+    roll = (rolling_peak_series(daily["close"].to_numpy(float), window)
+            if kind == ROLLING else None)
     opener = daily["open"].to_numpy(float)
     close = daily["close"].to_numpy(float)
     high = daily["high"].to_numpy(float)
@@ -186,8 +206,14 @@ def simulate(daily: pd.DataFrame, rule, start: str) -> dict:
                "high": pd.Series(high[lo:i + 1]),
                "low": pd.Series(low[lo:i + 1]),
                "i": i, "prev_target": prev_target, "peak": peak}
-        prev_target = float(rule(ctx))
-        peak = max(peak, close[i])
+        target = float(rule(ctx))
+        if kind == ROLLING:
+            peak = float(roll[i])    # 窗口最高值，随价格下移
+        elif kind == "REENTRY" and target > 0 and prev_target <= 0:
+            peak = close[i]          # 新仓位从入场日重新记高水位
+        else:
+            peak = max(peak, close[i])
+        prev_target = target
         if i >= start_i:
             rows.append({"date": daily.index[i], "close": close[i],
                          "shares": shares, "cash": cash})

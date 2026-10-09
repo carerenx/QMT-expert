@@ -124,6 +124,13 @@ class RedisQmtAdapterTests(unittest.TestCase):
             adapter.submit("BUY", "601869.SH", 50, 100.0, "bad-lot",
                            allow_odd_lot=True)
 
+    def test_custom_strategy_name_is_kept_by_adapter(self):
+        adapter = RedisQmtAdapter(
+            False, trader=FakeTrader(), xtdata=FakeXtData(),
+            account_id="acct", strategy_name="RedisQMT_A144_v1")
+
+        self.assertEqual(adapter.strategy_name, "RedisQMT_A144_v1")
+
     def test_timeout_cancels_before_returning_and_never_resubmits(self):
         trader = FakeTrader()
         trader.query_stock_orders = lambda *args, **kwargs: []

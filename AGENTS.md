@@ -84,7 +84,9 @@ QMT strategies run inside the QMT client, which provides injected globals:
 - `ContextInfo.get_full_tick([code])` — real-time bid/ask/last price
 - `ContextInfo.get_history_data(N, '1d', 'close')` — {code: [values]} dict
 
-File encoding must be `# -*- coding: gbk -*-` for Chinese QMT client.
+Python strategy source files use UTF-8 (`# -*- coding: utf-8 -*-`). Do not convert
+QMT or MiniQMT strategy files to GBK unless the user explicitly requests it for a
+specific external runtime.
 
 ## Current State (July 2026)
 

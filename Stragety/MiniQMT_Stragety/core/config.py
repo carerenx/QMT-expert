@@ -35,7 +35,7 @@ SELL_TRIGGER_BASE_WEAK_BULL = 0.65
 
 # 反T触发价缩放系数: 作用于"涨幅"部分 (curr_atr_pct × sell_mult)。
 # <1.0 下调触发价, 使阈值更易触发; >1.0 上调。0.50 = 涨幅整体下调 50%。
-SELL_TRIGGER_SCALE = 0.6
+SELL_TRIGGER_SCALE = 0.68
 
 DYNAMIC_MULT_MIN = 0.20
 DYNAMIC_MULT_MAX = 1.50

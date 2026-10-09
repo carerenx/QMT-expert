@@ -286,6 +286,44 @@ class FakeClient:
         raise AssertionError("unexpected rpc: %s" % method)
 
 
+class FormulaStaleClient(FakeClient):
+    """Formula fast-path is stale while the direct QMT RPC is current."""
+
+    def __init__(self, cache_dir):
+        super().__init__(cache_dir)
+        self.direct_calls = []
+
+    def call(self, method, params=None, account_id=None, timeout_seconds=None):
+        if method == "get_market_data_ex":
+            import pandas as pd
+
+            self.calls.append(method)
+            self.call_params.append((method, params))
+            return {
+                code: pd.DataFrame({
+                    "stime": ["20260918"],
+                    "close": [73.00],
+                })
+                for code in (params or {}).get("stock_list") or []
+            }
+        return super().call(method, params, account_id, timeout_seconds)
+
+    def call_rpc(self, method, params=None, account_id=None,
+                 timeout_seconds=None):
+        import pandas as pd
+
+        self.direct_calls.append(method)
+        if method != "get_market_data_ex":
+            raise AssertionError("unexpected direct rpc: %s" % method)
+        return {
+            code: pd.DataFrame({
+                "stime": ["20260918", "20260921", "20260922"],
+                "close": [73.00, 72.22, 72.24],
+            })
+            for code in (params or {}).get("stock_list") or []
+        }
+
+
 class LocalCacheClientTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -316,6 +354,26 @@ class LocalCacheClientTest(unittest.TestCase):
         self.assertEqual(list(data["600000.SH"]["close"]), [8.76, 8.73])
         # get_local_data must NOT issue any further RPC — pure local read.
         self.assertEqual(xt.client.calls, calls_after_download)
+
+    def test_download_refresh_bypasses_stale_formula_fast_path(self):
+        from bigqmt_signal_trader.xtquant_compat import BigQmtXtData
+
+        client = FormulaStaleClient(self.dir)
+        xt = BigQmtXtData(client)
+
+        xt.download_history_data2(
+            ["600584.SH"], "1d", dividend_type="none",
+            data_wait_seconds=0,
+        )
+        frame = xt.get_local_data(
+            stock_list=["600584.SH"], period="1d",
+            dividend_type="none",
+        )["600584.SH"]
+
+        self.assertEqual(list(frame.index), [
+            "20260918", "20260921", "20260922",
+        ])
+        self.assertEqual(client.direct_calls, ["get_market_data_ex"])
 
     def test_get_market_data_ex_caches_through(self):
         xt = self._xt()

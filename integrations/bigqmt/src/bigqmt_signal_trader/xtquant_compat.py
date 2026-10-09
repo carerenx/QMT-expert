@@ -638,6 +638,25 @@ class BigQmtRpcClient:
                 return _restore_jsonable(router.call(method, params or {}))
             except Unroutable:
                 pass
+        return self.call_rpc(
+            method,
+            params,
+            account_id=target_account,
+            timeout_seconds=wait_seconds,
+        )
+
+    def call_rpc(self, method, params=None, account_id=None,
+                 timeout_seconds=None):
+        """Call the QMT bridge directly, bypassing FormulaServer.
+
+        Explicit cache refreshes use this path because FormulaServer is an
+        independent read service and can temporarily lag the QMT history store
+        immediately after a download has been submitted.
+        """
+        target_account = str(account_id or self.account_id or "")
+        if not target_account:
+            raise ValueError("Big QMT account_id is required")
+        wait_seconds = self.timeout_seconds if timeout_seconds is None else timeout_seconds
         transport = self._transport()
         if transport is not None:
             # Swappable transport path (zmq/mysql/...). Build the request
@@ -900,9 +919,17 @@ class BigQmtXtData:
         # Self-heal adjusted reads (all-zero bars -> server raw download + retry).
         return self._heal_adjusted("get_market_data", params, data)
 
-    def _get_market_data_ex_batch(self, params, timeout_seconds=None):
+    def _get_market_data_ex_batch(self, params, timeout_seconds=None,
+                                  bypass_formula=False):
         """One RPC's worth of bars, healed and normalized. No caching."""
-        data = self._call("get_market_data_ex", timeout_seconds=timeout_seconds, **params)
+        caller = self.client.call
+        if bypass_formula:
+            caller = getattr(self.client, "call_rpc", caller)
+        data = caller(
+            "get_market_data_ex",
+            params,
+            timeout_seconds=timeout_seconds,
+        )
         # Self-heal adjusted reads (all-zero bars -> server raw download + retry).
         data = self._heal_adjusted("get_market_data_ex", params, data)
         # Normalize Big QMT's stime-indexed frame to MiniQMT shape (time-indexed).
@@ -922,6 +949,7 @@ class BigQmtXtData:
         fill_data=True,
         chunk_size=None,
         timeout_seconds=None,
+        bypass_formula=False,
     ):
         """Pull bars over RPC, in batches of ``chunk_size`` codes.
 
@@ -951,7 +979,8 @@ class BigQmtXtData:
 
         if step <= 0 or len(codes) <= step:
             data = self._get_market_data_ex_batch(
-                dict(base, stock_list=codes), timeout_seconds=timeout_seconds
+                dict(base, stock_list=codes), timeout_seconds=timeout_seconds,
+                bypass_formula=bypass_formula,
             )
         else:
             data = {}
@@ -960,7 +989,8 @@ class BigQmtXtData:
                 batch = codes[index:index + step]
                 try:
                     part = self._get_market_data_ex_batch(
-                        dict(base, stock_list=batch), timeout_seconds=timeout_seconds
+                        dict(base, stock_list=batch), timeout_seconds=timeout_seconds,
+                        bypass_formula=bypass_formula,
                     )
                 except Exception as exc:
                     # Losing one batch must not lose the others: a partial
@@ -1347,6 +1377,7 @@ class BigQmtXtData:
                     count=-1,
                     dividend_type=dividend_type,
                     fill_data=False,  # fill 会用全 0 占位行冒充数据，轮询判定必须关掉
+                    bypass_formula=True,
                 )
                 ready = 0
                 for code in batch:

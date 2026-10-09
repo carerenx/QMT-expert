@@ -1,0 +1,140 @@
+# -*- coding: utf-8 -*-
+"""Robustness gate for Alpha144 reserved-slot weak-exit parameters."""
+
+from __future__ import annotations
+
+import json
+import sys
+from dataclasses import replace
+from pathlib import Path
+
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from analysis.research_a144_redisqmt import Config
+from analysis.research_a144_redisqmt import add_features
+from analysis.research_a144_redisqmt import load_panel
+from analysis.research_a144_redisqmt import run_backtest
+
+
+OUTPUT_DIR = ROOT / "analysis" / "a144_weak_exit_optimization_20260923"
+
+
+def current_config() -> Config:
+    return Config(
+        name="current_d12_r04",
+        risk_model="inverse",
+        weak_exit_min_days=12,
+        weak_exit_max_return=-0.04,
+        weak_exit_reserve_slot=True,
+    )
+
+
+def candidates(base: Config) -> list[Config]:
+    output = [base]
+    for minimum_days in (8, 10, 12, 15, 18):
+        for maximum_return in (0.0, -0.02, -0.04, -0.06):
+            if minimum_days == 12 and maximum_return == -0.04:
+                continue
+            output.append(replace(
+                base,
+                name="candidate_d{}_r{:02d}".format(
+                    minimum_days,
+                    int(abs(maximum_return) * 100)),
+                weak_exit_min_days=minimum_days,
+                weak_exit_max_return=maximum_return))
+    return output
+
+
+def main() -> int:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    print("loading panel", flush=True)
+    frame = add_features(load_panel())
+    base = current_config()
+    configs = candidates(base)
+    periods = [
+        ("train", "20220104", "20241231"),
+        ("holdout", "20250102", "20260918"),
+        ("full", "20220104", "20260918"),
+    ]
+    rows = []
+    for period, start, end in periods:
+        for index, config in enumerate(configs, 1):
+            print(
+                "{} {}/{} {}".format(
+                    period,
+                    index,
+                    len(configs),
+                    config.name),
+                flush=True)
+            metrics, _, _ = run_backtest(frame, config, start, end)
+            metrics["period"] = period
+            rows.append(metrics)
+    raw = pd.DataFrame(rows)
+    indexed = raw.set_index(["period", "name"])
+    result_rows = []
+    for config in configs[1:]:
+        deltas = {}
+        for period, _, _ in periods:
+            candidate = indexed.loc[(period, config.name)]
+            baseline = indexed.loc[(period, base.name)]
+            deltas[period] = {
+                "annual": (
+                    candidate["annual_return"] - baseline["annual_return"]),
+                "drawdown": (
+                    candidate["max_drawdown"] - baseline["max_drawdown"]),
+                "sharpe": candidate["sharpe"] - baseline["sharpe"],
+            }
+        passes = bool(
+            all(deltas[period]["annual"] > 0 for period, _, _ in periods) and
+            all(deltas[period]["drawdown"] >= -0.02
+                for period, _, _ in periods) and
+            deltas["full"]["sharpe"] >= 0)
+        result_rows.append({
+            "name": config.name,
+            "passes": passes,
+            "train_annual_delta": deltas["train"]["annual"],
+            "holdout_annual_delta": deltas["holdout"]["annual"],
+            "full_annual_delta": deltas["full"]["annual"],
+            "worst_annual_delta": min(
+                deltas[period]["annual"] for period, _, _ in periods),
+            "train_drawdown_delta": deltas["train"]["drawdown"],
+            "holdout_drawdown_delta": deltas["holdout"]["drawdown"],
+            "full_drawdown_delta": deltas["full"]["drawdown"],
+            "full_sharpe_delta": deltas["full"]["sharpe"],
+        })
+    result = pd.DataFrame(result_rows).sort_values(
+        ["passes", "worst_annual_delta", "full_sharpe_delta"],
+        ascending=[False, False, False])
+    passing = result[result["passes"]]
+    selected = base.name if passing.empty else str(passing.iloc[0]["name"])
+    raw.to_csv(
+        OUTPUT_DIR / "period_results.csv",
+        index=False,
+        encoding="utf-8-sig")
+    result.to_csv(
+        OUTPUT_DIR / "robustness_gate.csv",
+        index=False,
+        encoding="utf-8-sig")
+    payload = {
+        "selected": selected,
+        "selection_rule": (
+            "annual return improves in train, holdout and continuous full; "
+            "drawdown deterioration <=2pct in each; full Sharpe does not fall"),
+        "gate": result.to_dict(orient="records"),
+        "metrics": raw.to_dict(orient="records"),
+    }
+    (OUTPUT_DIR / "summary.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    print("selected={}".format(selected), flush=True)
+    print(result.to_string(index=False), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

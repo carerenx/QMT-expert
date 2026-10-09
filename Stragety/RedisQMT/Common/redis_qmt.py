@@ -29,7 +29,8 @@ class RedisQmtAdapter(object):
     """Hide BigQMT Redis transport, account fields, and fill polling."""
 
     def __init__(self, live=False, trader=None, xtdata=None, account_id=None,
-                 poll_interval=0.25, fill_timeout=config.FILL_TIMEOUT_SECONDS):
+                 poll_interval=0.25, fill_timeout=config.FILL_TIMEOUT_SECONDS,
+                 strategy_name=None):
         if trader is None or xtdata is None:
             client_config = load_client_config()
             account_id = str(account_id or client_config.get("account_id") or "")
@@ -39,6 +40,7 @@ class RedisQmtAdapter(object):
         self.xtdata = xtdata
         self.account = StockAccount(self.account_id, "STOCK")
         self.live = bool(live)
+        self.strategy_name = str(strategy_name or config.STRATEGY_NAME)
         self.poll_interval = float(poll_interval)
         self.fill_timeout = float(fill_timeout)
 
@@ -104,7 +106,7 @@ class RedisQmtAdapter(object):
         try:
             order_id = self.trader.order_stock(
                 self.account, symbol, order_type, shares, FIX_PRICE, price,
-                config.STRATEGY_NAME, remark)
+                self.strategy_name, remark)
         except TimeoutError:
             recovered = self._recover_timed_out_submission(remark, shares, price)
             if recovered is not None:
@@ -123,7 +125,7 @@ class RedisQmtAdapter(object):
         while True:
             orders = self.trader.query_stock_orders(
                 self.account, cancelable_only=False,
-                strategy_name=config.STRATEGY_NAME) or []
+                strategy_name=self.strategy_name) or []
             latest = next((item for item in orders
                            if str(_value(item, "order_id", "order_sys_id", default="")) == str(order_id)
                            or str(_value(item, "order_remark", default="")) == str(remark)), latest)
@@ -136,7 +138,7 @@ class RedisQmtAdapter(object):
                 except Exception:
                     pass
                 trades = self.trader.query_stock_trades(
-                    self.account, strategy_name=config.STRATEGY_NAME) or []
+                    self.account, strategy_name=self.strategy_name) or []
                 matching = [item for item in trades
                             if str(_value(item, "order_id", "order_sys_id", default="")) == str(order_id)
                             or str(_value(item, "order_remark", default="")) == str(remark)]
@@ -157,14 +159,14 @@ class RedisQmtAdapter(object):
     def _recover_timed_out_submission(self, remark, shares, fallback_price):
         orders = self.trader.query_stock_orders(
             self.account, cancelable_only=False,
-            strategy_name=config.STRATEGY_NAME) or []
+            strategy_name=self.strategy_name) or []
         order = next((item for item in orders
                       if str(_value(item, "order_remark", default="")) == str(remark)), None)
         if order is not None:
             order_id = _value(order, "order_id", "order_sys_id", default=None)
             return self._wait_for_fill(order_id, shares, fallback_price, remark)
         trades = self.trader.query_stock_trades(
-            self.account, strategy_name=config.STRATEGY_NAME) or []
+            self.account, strategy_name=self.strategy_name) or []
         matching = [item for item in trades
                     if str(_value(item, "order_remark", default="")) == str(remark)]
         filled = sum(int(_value(item, "traded_volume", "volume", default=0) or 0)

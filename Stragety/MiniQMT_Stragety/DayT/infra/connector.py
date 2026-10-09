@@ -434,7 +434,8 @@ class MiniQMTConnector:
 
     def load_daily_snapshot(self, length, today=None, tick_last_close=0.0,
                             tick_time=None, retries=3, retry_delay=1.0,
-                            now_hms=None, stock_code=None):
+                            now_hms=None, stock_code=None,
+                            align_leading_window=False):
         """Load aligned, fresh complete daily bars from MiniQMT's active data source.
 
         Returns a dict with ``adjusted`` (front-adjusted indicator data), ``raw``
@@ -449,6 +450,7 @@ class MiniQMTConnector:
         start = (datetime.now() - timedelta(days=365 * 6)).strftime('%Y%m%d')
         fields = ['open', 'high', 'low', 'close', 'volume', 'amount']
         attempts = max(1, int(retries))
+        query_count = length + 1 if align_leading_window else length
 
         for attempt in range(1, attempts + 1):
             try:
@@ -466,11 +468,11 @@ class MiniQMTConnector:
             try:
                 adjusted_data = self.xtdata.get_local_data(
                     field_list=fields, stock_list=[code], period='1d',
-                    start_time=start, end_time=end, count=length,
+                    start_time=start, end_time=end, count=query_count,
                     dividend_type='front')
                 raw_data = self.xtdata.get_local_data(
                     field_list=fields, stock_list=[code], period='1d',
-                    start_time=start, end_time=end, count=length,
+                    start_time=start, end_time=end, count=query_count,
                     dividend_type='none')
             except Exception as e:
                 _log('[DailyData] read failed attempt {}/{}: {}'.format(
@@ -481,6 +483,7 @@ class MiniQMTConnector:
             raw = raw_data.get(code) if raw_data else None
             reason = ''
             tick_last_close_one_day_stale = False
+            tick_last_close_adjusted_match = False
             if adjusted is None or raw is None or len(adjusted) == 0 or len(raw) == 0:
                 reason = 'daily data missing'
             else:
@@ -503,6 +506,18 @@ class MiniQMTConnector:
                 # suspended/legacy records outside that window are irrelevant.
                 adjusted = adjusted.tail(length)
                 raw = raw.tail(length)
+
+                if align_leading_window and not adjusted.index.equals(raw.index):
+                    shorter = adjusted if len(adjusted) <= len(raw) else raw
+                    longer = raw if shorter is adjusted else adjusted
+                    suffix = longer.index[-len(shorter):] if len(shorter) else []
+                    if len(shorter) and shorter.index.equals(suffix):
+                        common_index = shorter.index
+                        adjusted = adjusted.loc[common_index]
+                        raw = raw.loc[common_index]
+                        _log('[DailyData ALIGN] ignored leading window-only '
+                             'date difference; common_count={} first={} last={}'.format(
+                                 len(common_index), common_index[0], common_index[-1]))
 
                 missing_cols = [f for f in fields if f not in adjusted.columns or f not in raw.columns]
                 if missing_cols:
@@ -552,10 +567,30 @@ class MiniQMTConnector:
                             else:
                                 expected_tick_close = float(tick_prior.iloc[-1]['close'])
                                 if abs(expected_tick_close - float(tick_last_close)) > 0.02:
-                                    reason = ('raw close {:.2f} before tick date {} '
-                                              '!= tick lastClose {:.2f}'.format(
-                                                  expected_tick_close, tick_date,
-                                                  float(tick_last_close)))
+                                    adjusted_prior = adjusted.loc[
+                                        [str(index) < tick_date for index in adjusted.index]]
+                                    adjusted_tick_close = (
+                                        float(adjusted_prior.iloc[-1]['close'])
+                                        if len(adjusted_prior) else 0.0)
+                                    if (adjusted_tick_close > 0 and
+                                            abs(adjusted_tick_close -
+                                                float(tick_last_close)) <= 0.02):
+                                        tick_last_close_adjusted_match = True
+                                        _log(
+                                            '[DailyData ADJUSTED-MATCH] raw close {:.2f} '
+                                            'before tick date {} differs from tick lastClose '
+                                            '{:.2f}, but front-adjusted close {:.2f} matches; '
+                                            'accepting corporate-action reference price'.format(
+                                                expected_tick_close, tick_date,
+                                                float(tick_last_close),
+                                                adjusted_tick_close))
+                                    else:
+                                        reason = ('raw close {:.2f} before tick date {} '
+                                                  '!= tick lastClose {:.2f}; adjusted close '
+                                                  '{:.2f} also differs'.format(
+                                                      expected_tick_close, tick_date,
+                                                      float(tick_last_close),
+                                                      adjusted_tick_close))
                         elif abs(raw_close - float(tick_last_close)) > 0.02:
                             previous_raw_close = (
                                 float(raw.iloc[-2]['close'])
@@ -567,8 +602,21 @@ class MiniQMTConnector:
                                     'trading day stale; using verified raw close {:.2f}'.format(
                                         float(tick_last_close), raw_close))
                             else:
-                                reason = 'raw close {:.2f} != tick lastClose {:.2f}'.format(
-                                    raw_close, float(tick_last_close))
+                                adjusted_close = float(adjusted.iloc[-1]['close'])
+                                if abs(adjusted_close - float(tick_last_close)) <= 0.02:
+                                    tick_last_close_adjusted_match = True
+                                    _log(
+                                        '[DailyData ADJUSTED-MATCH] raw close {:.2f} '
+                                        'differs from tick lastClose {:.2f}, but '
+                                        'front-adjusted close {:.2f} matches; accepting '
+                                        'corporate-action reference price'.format(
+                                            raw_close, float(tick_last_close),
+                                            adjusted_close))
+                                else:
+                                    reason = ('raw close {:.2f} != tick lastClose {:.2f}; '
+                                              'adjusted close {:.2f} also differs'.format(
+                                                  raw_close, float(tick_last_close),
+                                                  adjusted_close))
 
             if not reason:
                 actual_date = _normalize_trade_date(adjusted.index[-1])
@@ -588,6 +636,7 @@ class MiniQMTConnector:
                     'last_complete_date': actual_date,
                     'verified_last_close': float(raw.iloc[-1]['close']),
                     'tick_last_close_one_day_stale': tick_last_close_one_day_stale,
+                    'tick_last_close_adjusted_match': tick_last_close_adjusted_match,
                 }
 
             _log('[DATA-STALE] attempt {}/{}: {}'.format(attempt, attempts, reason))
