@@ -1,4 +1,4 @@
-"""Run QMT-export MiniQMT strategies through the bundled Big QMT bridge."""
+"""Run QMT-expert MiniQMT strategies through the bundled Big QMT bridge."""
 
 import argparse
 import importlib.util

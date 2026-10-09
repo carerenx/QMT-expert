@@ -4,7 +4,7 @@ import re
 import sys
 from collections import defaultdict
 
-LOG_PATH = 'C:/MyW/QMT-Export/Log/log20260806-3'
+LOG_PATH = 'C:/MyW/QMT-Expert/Log/log20260806-3'
 
 with open(LOG_PATH, 'r', encoding='utf-8') as f:
     content = f.read()

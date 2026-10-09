@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-DATA_DIR = r'd:\02Project\QMT-export\data\backtest_2025'
+DATA_DIR = r'd:\02Project\QMT-expert\data\backtest_2025'
 os.makedirs(DATA_DIR, exist_ok=True)
 EM_SESSION = requests.Session()
 EM_SESSION.headers.update({'User-Agent': UA})

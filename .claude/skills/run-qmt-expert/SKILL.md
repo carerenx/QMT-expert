@@ -1,10 +1,10 @@
 ---
-name: run-qmt-export
-description: Build, run, smoke-test, and drive the QMT-export quantitative trading backtest system. Use when asked to run a backtest, verify the engine works, validate a strategy, test data loading, or check that the backtest system is healthy.
+name: run-qmt-expert
+description: Build, run, smoke-test, and drive the QMT-expert quantitative trading backtest system. Use when asked to run a backtest, verify the engine works, validate a strategy, test data loading, or check that the backtest system is healthy.
 ---
 
-QMT-export is a Python quantitative trading strategy library with a CLI backtest system.
-Drive it via `.claude/skills/run-qmt-export/driver.py` (smoke test) or `python -m backtest.run` (full CLI).
+QMT-expert is a Python quantitative trading strategy library with a CLI backtest system.
+Drive it via `.claude/skills/run-qmt-expert/driver.py` (smoke test) or `python -m backtest.run` (full CLI).
 
 All paths below are relative to the repo root.
 
@@ -30,14 +30,14 @@ No env vars or config files needed. The backtest engine uses defaults from `back
 The **smoke test driver** validates imports, data loading, strategy loading, and runs a minimal single-stock backtest on both engines:
 
 ```bash
-python .claude/skills/run-qmt-export/driver.py
+python .claude/skills/run-qmt-expert/driver.py
 ```
 
 Options:
 
 ```bash
-python .claude/skills/run-qmt-export/driver.py --quick          # imports only, skip backtest runs
-python .claude/skills/run-qmt-export/driver.py --stock 000001.SZ  # use a different cached stock
+python .claude/skills/run-qmt-expert/driver.py --quick          # imports only, skip backtest runs
+python .claude/skills/run-qmt-expert/driver.py --stock 000001.SZ  # use a different cached stock
 ```
 
 Exit code 0 = all checks passed. Non-zero = first failing check reported with a traceback.
@@ -134,7 +134,7 @@ Ctrl-C to stop. Results saved to `backtest/output/report_<timestamp>/`.
 There is no standalone test suite. The smoke test driver (`driver.py`) serves as the integration test. Run it before and after changes:
 
 ```bash
-python .claude/skills/run-qmt-export/driver.py
+python .claude/skills/run-qmt-expert/driver.py
 ```
 
 ## Gotchas

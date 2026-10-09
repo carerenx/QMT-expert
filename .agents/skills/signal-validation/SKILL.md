@@ -22,7 +22,7 @@ description: Validate A-stock sell/top-detection signals against historical data
 ## 运行
 
 ```bash
-cd <项目根目录>    # d:\02Project\QMT-export
+cd <项目根目录>    # d:\02Project\QMT-expert
 
 # 默认300天回看，输出到output/
 python .Codex/skills/signal-validation/driver.py 601869

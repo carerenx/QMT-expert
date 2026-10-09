@@ -3,7 +3,7 @@
 import re, sys
 from collections import defaultdict, Counter
 
-LOG = 'C:/MyW/QMT-Export/Log/log20260806-4'
+LOG = 'C:/MyW/QMT-Expert/Log/log20260806-4'
 with open(LOG, 'r', encoding='utf-8') as f:
     content = f.read()
 

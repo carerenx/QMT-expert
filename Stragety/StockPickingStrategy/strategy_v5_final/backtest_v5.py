@@ -12,7 +12,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import numpy as np
 
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-DATA_DIR = r'd:\02Project\QMT-export\strategy_v5_final\data'
+DATA_DIR = r'd:\02Project\QMT-expert\strategy_v5_final\data'
 os.makedirs(DATA_DIR, exist_ok=True)
 EM_SESSION = requests.Session()
 EM_SESSION.headers.update({'User-Agent': UA})

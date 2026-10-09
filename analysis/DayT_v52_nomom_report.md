@@ -153,7 +153,7 @@ MOM_ENABLED = False  # ← MOM屏蔽回测: 禁用动量触发，仅保留REV-T
 
 ```bash
 # 确保已安装依赖
-cd d:\02Project\QMT-export
+cd d:\02Project\QMT-expert
 pip install pandas numpy
 ```
 

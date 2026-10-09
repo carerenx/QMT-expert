@@ -134,7 +134,7 @@ _Last synced: 2026-08-20T01:18:51.909Z._
 
 #### Workspace MCP
 
-- `d:\02Project\QMT-export\.mcp.json` _(workspace: QMT-export)_ — _file missing_
+- `d:\02Project\QMT-expert\.mcp.json` _(workspace: QMT-expert)_ — _file missing_
 
 _No active workspace servers in mcp.json._
 
@@ -151,9 +151,9 @@ _No active workspace servers in mcp.json._
 
 #### Project skills
 
-- **git-commit** — `d:\02Project\QMT-export\.Codex\skills\git-commit` — Execute git commit with conventional commit message analysis, intelligent staging, and message generation. Use when user asks to commit changes, create a git commit, or mentions "/commit".
+- **git-commit** — `d:\02Project\QMT-expert\.Codex\skills\git-commit` — Execute git commit with conventional commit message analysis, intelligent staging, and message generation. Use when user asks to commit changes, create a git commit, or mentions "/commit".
 
-- **run-qmt-export** — `d:\02Project\QMT-export\.Codex\skills\run-qmt-export` — Build, run, smoke-test, and drive the QMT-export quantitative trading backtest system. Use when asked to run a backtest, verify the engine works, validate a strategy, test data loading, or check that the backtest system 
+- **run-qmt-expert** — `d:\02Project\QMT-expert\.Codex\skills\run-qmt-expert` — Build, run, smoke-test, and drive the QMT-expert quantitative trading backtest system. Use when asked to run a backtest, verify the engine works, validate a strategy, test data loading, or check that the backtest system 
 
 #### User skills
 

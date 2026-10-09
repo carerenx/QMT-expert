@@ -1,4 +1,4 @@
 interface:
   display_name: "QMT Safe Commit"
-  short_description: "Safely stage and commit QMT-export changes"
-  default_prompt: "Review, verify, stage, and commit the current QMT-export changes safely."
+  short_description: "Safely stage and commit QMT-expert changes"
+  default_prompt: "Review, verify, stage, and commit the current QMT-expert changes safely."

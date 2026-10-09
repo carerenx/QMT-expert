@@ -84,5 +84,5 @@ ContextInfo.run_time在回测中无法触发，回测应该使用handlebar，不
 ## 文件位置
 
 此 SKILL.md 应位于 `~/.claude/skills/qmt-expert/SKILL.md`。
-预提取 Markdown 文件位于 `C:\MyW\QMT-Export\references\md\`。
-PDF 源文件位于 `C:\MyW\QMT-Export\refdoc\`。
+预提取 Markdown 文件位于 `C:\MyW\QMT-Expert\references\md\`。
+PDF 源文件位于 `C:\MyW\QMT-Expert\refdoc\`。

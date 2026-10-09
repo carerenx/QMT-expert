@@ -8,7 +8,7 @@ from collections import Counter
 sys.stdout.reconfigure(encoding='utf-8')
 
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-DATA_DIR = r'd:\02Project\QMT-export\data\similar_screening'
+DATA_DIR = r'd:\02Project\QMT-expert\data\similar_screening'
 os.makedirs(DATA_DIR, exist_ok=True)
 EM_SESSION = requests.Session()
 EM_SESSION.headers.update({'User-Agent': UA})

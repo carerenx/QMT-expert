@@ -9,7 +9,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import numpy as np
 
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-DATA_DIR = r'd:\02Project\QMT-export\strategy_v3_tech_only\data'
+DATA_DIR = r'd:\02Project\QMT-expert\strategy_v3_tech_only\data'
 os.makedirs(DATA_DIR, exist_ok=True)
 EM_SESSION = requests.Session()
 EM_SESSION.headers.update({'User-Agent': UA})
@@ -164,7 +164,7 @@ print(f'Valid tech results: {len(results)}')
 
 # ============ STEP 3: Get V1 all-sector results for comparison ============
 print('\n--- STEP 3: Loading V1 all-sector benchmark ---')
-v1_all_path = r'd:\02Project\QMT-export\strategy_v1_initial\data_backtest\backtest_results.csv'
+v1_all_path = r'd:\02Project\QMT-expert\strategy_v1_initial\data_backtest\backtest_results.csv'
 v1_all = {}
 try:
     with open(v1_all_path,'r',encoding='utf-8-sig') as f:
