@@ -20,6 +20,7 @@ import pandas as pd
 
 from .dual_regime_execution import Journal, RedisBroker, exclusive_state, fee, new_state, price_limit
 from .csi500_membership import ensure as ensure_membership
+from .dual_regime_report import daily_report, execution_report, minute_report
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -90,6 +91,18 @@ class Market:
         self.policy = policy
         self.auto_universe = auto_universe
         self.day = ''
+        self.names = {}
+        self.reported_day = ''
+
+    def name(self, code):
+        if code not in self.names:
+            try:
+                detail = self.xtdata.get_instrument_detail(code) or {}
+                self.names[code] = detail.get('InstrumentName') or 'Unknown'
+            except Exception as error:
+                self.names[code] = 'Unknown'
+                _log(f'[NameLookup] {code} unavailable: {error}')
+        return self.names[code]
 
     def request(self, codes, period, end, count, adjustment='none', start=''):
         return self.xtdata.get_market_data_ex(
@@ -135,6 +148,7 @@ class Market:
             listing_date = None
             if has_zero and code in stock_codes:
                 detail = self.xtdata.get_instrument_detail(code) or {}
+                self.names[code] = detail.get('InstrumentName') or 'Unknown'
                 value = str(detail.get('OpenDate') or '').split('.')[0]
                 if len(value) == 8 and value.isdigit():
                     listing_date = value
@@ -340,6 +354,8 @@ def run(policy, argv=None):
     parser.add_argument('--state', type=Path, default=Path(policy.__file__).parent / 'state/dual_regime_v12.json')
     parser.add_argument('--capital', type=float, default=1e6, help='dedicated initial budget, only on first start')
     args = parser.parse_args(argv)
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     if not math.isfinite(args.capital) or args.capital <= 0:
         parser.error('capital must be finite and positive')
     sys.path.insert(0, str(ROOT / 'integrations/bigqmt/src'))
@@ -390,11 +406,15 @@ def run(policy, argv=None):
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
             date = now.strftime('%Y%m%d')
             stamp = now.strftime('%Y%m%d%H%M00')
+            previous = (len(state['fills']), len(state['trades']),
+                        {key: (order['status'], order['terminal']) for key, order in state['orders'].items()})
             unresolved = journal.reconcile(broker, date)
+            execution_report(market, state, previous, _log)
             cash, actual = broker.snapshot()
             journal.check_positions(actual)
             if args.mode == 'check':
                 market.prepare(date, state)
+                daily_report(market, state, cash, actual, _log)
                 _log(f'[Check] owned={len(state["positions"])} pending={len(journal.active())} unresolved={len(unresolved)}; no orders submitted')
                 return 0
             if unresolved:
@@ -410,6 +430,9 @@ def run(policy, argv=None):
                 time.sleep(5)
                 continue
             market.prepare(date, state)
+            if market.reported_day != date:
+                daily_report(market, state, cash, actual, _log)
+                market.reported_day = date
             completed = [date + value for value in TIMES if date + value < stamp]
             if not completed:
                 time.sleep(2)
@@ -424,9 +447,13 @@ def run(policy, argv=None):
             bars = market.bars(codes, date, signal)
             intents = build_intents(policy, market, journal, actual, cash, stamp, signal, bars)
             journal.save()  # Persist parent budgets and latched exits before RPCs.
+            minute_report(market, journal, actual, signal, bars, intents, _log)
             for intent in intents:
+                already_recorded = intent['key'] in state['orders']
                 journal.submit(broker, intent, now.isoformat())
-                _log(f'[Order] {intent["side"]} {intent["code"]} qty={intent["quantity"]} limit={intent["limit"]:.3f} sleeve={intent["sleeve"]}')
+                order = state['orders'][intent['key']]
+                _log(f'[Submission] key={intent["key"]} duplicate_skipped={already_recorded}'
+                     f' broker_id={order["order_id"] or "awaiting_confirmation"}; not_a_fill')
             state['last_signal'] = signal
             journal.save()
             time.sleep(2)

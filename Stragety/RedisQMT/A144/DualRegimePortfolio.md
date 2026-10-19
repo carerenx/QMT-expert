@@ -70,6 +70,17 @@ python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode live --ca
 
 ## 验证
 
+### 运行日志
+
+2026-10-19补充筛选及交易计划日志，字段使用英文、证券名称使用中文并按显示宽度对齐。`check`和实盘每日首次准备数据时打印：
+
+- `[Market]`：信号日期、指数收盘与MA60、广度门槛、广度变化及主次策略开关。
+- `[PrimaryScreen]`：各条件单项通过数量、累计剩余数量；`[PrimaryPreMarket]`列出趋势及领涨条件通过的股票，后续可能仍被剔除；`[PrimaryCandidate]`才是最终日线候选，附名称、评分、目标权重及前日估值预算参考。预算参考尚未扣除母单预留和竞争分配，不是已确定的下单预算。
+- `[SecondaryScreen]`：全部七ETF的价格、均线、动量或RSI、成交额、日线资格、组内领先者及未通过原因；`[EntryPlan]`说明分钟触发价格与时间窗口，日线入选不代表已下单。
+- `[Account]`、`[Holding]`、`[ExitPlan]`：专用资金与券商可用现金、自有数量/可卖数量、已锁定或完成日拟触发退出、第二策略止损止盈参考。参考触发价不表示券商已挂止损单。
+
+实盘每个新分钟打印`[TradePlan]`及必要的`[EntryCheck]`；新母单的`[ParentPlan]`显示预算和寿命，`[OrderPlan]`显示真正生成但尚未提交的方向、数量、限价、按限价计算的委托金额及订单标识。`[Submission]`只代表发送或幂等跳过，不代表成交。`[Fill]`/`[FillAdjustment]`只来自新核对的券商累计成交差额；`[OrderStatus]`和`[PositionClosed]`分别表示状态变化和完整平仓，费用及净收益仍明确标为估计口径。每两秒轮询不重复打印未变化的成交状态。名称查询失败显示`Unknown`，不改变交易判断。入口采用UTF-8标准输出，便于中文名称显示和日志重定向。
+
 ```powershell
 python -m pytest .\Stragety\RedisQMT\A144\tests\test_dual_regime_portfolio.py -q --basetemp .\output\pytest_a144_v12_new_run
 ```
