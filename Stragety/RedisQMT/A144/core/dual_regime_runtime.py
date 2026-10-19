@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from .dual_regime_execution import Journal, RedisBroker, exclusive_state, fee, new_state, price_limit
+from .csi500_membership import ensure as ensure_membership
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -30,7 +31,7 @@ def _log(message):
     print(f'[{datetime.now():%H:%M:%S}] {message}', flush=True)
 
 
-def normalize(frame, end, daily=True):
+def normalize(frame, end, daily=True, listing_date=None):
     if frame is None or frame.empty:
         raise ValueError('Missing Redis QMT history')
     result = frame.copy()
@@ -42,6 +43,14 @@ def normalize(frame, end, daily=True):
     result[columns] = result[columns].apply(pd.to_numeric, errors='raise')
     if result.empty or not result[columns].apply(lambda column: column.map(math.isfinite)).all().all():
         raise ValueError('Empty/nonfinite market history')
+    if daily and listing_date is not None:
+        datetime.strptime(listing_date, '%Y%m%d')
+        before_listing = result.loc[result.index < listing_date]
+        if not before_listing[columns].eq(0).all().all():
+            raise ValueError('Nonzero prices/volume before verified IPO date')
+        result = result.loc[result.index >= listing_date]
+        if result.empty:
+            raise ValueError('No history after verified IPO date')
     if (result[['open', 'high', 'low', 'close']] <= 0).any().any():
         raise ValueError('Zero/negative market price')
     if (result.high < result[['open', 'close', 'low']].max(axis=1)).any() or (result.low > result[['open', 'close', 'high']].min(axis=1)).any():
@@ -75,10 +84,11 @@ def load_universe(path, dates, today, lookback=5):
 
 
 class Market:
-    def __init__(self, xtdata, universe, policy):
+    def __init__(self, xtdata, universe, policy, auto_universe=False):
         self.xtdata = xtdata
         self.universe = universe
         self.policy = policy
+        self.auto_universe = auto_universe
         self.day = ''
 
     def request(self, codes, period, end, count, adjustment='none', start=''):
@@ -91,6 +101,8 @@ class Market:
     def prepare(self, today, state):
         if self.day == today:
             return
+        ensure_membership(self.universe, self.xtdata, today, self.policy.PRIMARY_BREADTH_LOOKBACK,
+                          auto_refresh=self.auto_universe)
         calendar = self.xtdata.get_trading_dates('SH', end_time=today, count=300)
         dates = []
         for value in calendar or []:
@@ -114,7 +126,24 @@ class Market:
         codes = stock_codes | set(self.policy.CODES) | {'000905.SH'}
         raw = self.request(codes, '1d', asof, 300)
         adjusted = self.request(stock_codes, '1d', asof, 300, 'front')
-        daily = {code: normalize(raw.get(code), asof) for code in codes}
+        daily = {}
+        listing_dates = {}
+        for code in sorted(codes):
+            frames = [raw.get(code), adjusted.get(code)]
+            has_zero = any(frame is not None and not frame.empty and
+                           (frame[['open', 'high', 'low', 'close']] <= 0).any().any() for frame in frames)
+            listing_date = None
+            if has_zero and code in stock_codes:
+                detail = self.xtdata.get_instrument_detail(code) or {}
+                value = str(detail.get('OpenDate') or '').split('.')[0]
+                if len(value) == 8 and value.isdigit():
+                    listing_date = value
+                    _log(f'[History] {code} trimming zero placeholders strictly before verified IPO={value}')
+            listing_dates[code] = listing_date
+            try:
+                daily[code] = normalize(raw.get(code), asof, listing_date=listing_date)
+            except ValueError as error:
+                raise ValueError(f'{code}: {error}') from error
         for code, frame in daily.items():
             if frame.index[-1] != asof:
                 raise ValueError('Stale daily history: ' + code)
@@ -123,7 +152,10 @@ class Market:
                 raise ValueError('Insufficient daily warm-up: ' + code)
         parts = []
         for code in sorted(stock_codes):
-            adj = normalize(adjusted.get(code), asof)
+            try:
+                adj = normalize(adjusted.get(code), asof, listing_date=listing_dates[code])
+            except ValueError as error:
+                raise ValueError(f'{code} adjusted: {error}') from error
             frame = daily[code].join(adj[['open', 'high', 'low', 'close']].add_prefix('adj_'), how='inner')
             if frame.index[-1] != asof:
                 raise ValueError('Missing adjusted close: ' + code)
@@ -302,14 +334,14 @@ def build_intents(policy, market, journal, broker_positions, broker_cash, stamp,
 def run(policy, argv=None):
     parser = argparse.ArgumentParser(description='A144 primary + weak-market secondary Redis QMT live portfolio')
     parser.add_argument('--mode', choices=('check', 'live'), default='check')
-    parser.add_argument('--universe', type=Path, required=True, help='verified dated CSI500 membership JSON')
+    default_universe = Path(policy.__file__).parent / 'state/csi500_membership.json'
+    parser.add_argument('--universe', type=Path, default=default_universe,
+                        help='dated CSI500 membership JSON; missing file is prepared from official sources')
     parser.add_argument('--state', type=Path, default=Path(policy.__file__).parent / 'state/dual_regime_v12.json')
     parser.add_argument('--capital', type=float, default=1e6, help='dedicated initial budget, only on first start')
     args = parser.parse_args(argv)
     if not math.isfinite(args.capital) or args.capital <= 0:
         parser.error('capital must be finite and positive')
-    if not args.universe.is_file():
-        parser.error('verified universe file does not exist')
     sys.path.insert(0, str(ROOT / 'integrations/bigqmt/src'))
     import xtquant
     if Path(xtquant.__file__).resolve().parent != ROOT / 'integrations/bigqmt/src/xtquant':
@@ -325,26 +357,35 @@ def run(policy, argv=None):
         ping = trader.client.call('ping')
         if not isinstance(ping, dict) or not ping.get('pong') or str(ping.get('account_id')) != ACCOUNT:
             raise RuntimeError('Redis QMT ping/account validation failed')
+        auto_universe = args.universe.resolve() == default_universe.resolve()
+        today = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d')
+        _log(f'[Universe] checking {args.universe}; missing/default-expired file is prepared from official CSI sources')
+        ensure_membership(args.universe, xtdata, today, policy.PRIMARY_BREADTH_LOOKBACK,
+                          auto_refresh=auto_universe)
         account = StockAccount(ACCOUNT)
         broker = RedisBroker(trader, account)
         if not args.state.exists():
             initial_available = broker.snapshot()[0]
             if args.capital > initial_available:
-                raise RuntimeError('Initial dedicated capital exceeds actual available cash; set --capital explicitly')
+                if args.mode == 'live':
+                    raise RuntimeError('Initial dedicated capital exceeds actual available cash; set --capital explicitly')
+                _log('[Check] requested capital exceeds actual available cash; LIVE will be blocked; no budget was changed')
         state = json.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else new_state(ACCOUNT, args.capital)
         if state['schema'] != 1 or state['account'] != ACCOUNT or state['strategy'] != policy.STRATEGY:
             raise RuntimeError('Checkpoint schema/account/strategy mismatch')
         # Never silently continue an existing position with edited strategy code.
         implementation = [Path(policy.__file__), Path(__file__),
                           Path(__file__).with_name('dual_regime_execution.py'),
+                          Path(__file__).with_name('csi500_membership.py'),
                           Path(__file__).with_name('trend.py')]
         code_hash = hashlib.sha256(b''.join(path.read_bytes() for path in implementation)).hexdigest()
         if state.get('policy_sha256', code_hash) != code_hash:
             raise RuntimeError('Strategy changed since checkpoint; explicit migration required')
         state['policy_sha256'] = code_hash
         journal = Journal(args.state, state)
-        market = Market(xtdata, args.universe, policy)
-        journal.save()
+        market = Market(xtdata, args.universe, policy, auto_universe=auto_universe)
+        if args.mode == 'live' or args.state.exists():
+            journal.save()
         while True:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
             date = now.strftime('%Y%m%d')

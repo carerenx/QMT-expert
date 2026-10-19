@@ -220,6 +220,19 @@ def test_completed_bar_validation_rejects_placeholders_and_duplicates():
         normalize(frame, '20261016093100', daily=False)
 
 
+def test_only_verified_pre_ipo_zero_padding_can_be_trimmed():
+    frame = pd.DataFrame([
+        dict(open=0., high=0., low=0., close=0., volume=0., amount=0.),
+        dict(open=2., high=2., low=2., close=2., volume=10., amount=2000.)],
+        index=['20261015', '20261016'])
+    assert list(normalize(frame, '20261016', listing_date='20261016').index) == ['20261016']
+    with pytest.raises(ValueError, match='Zero'):
+        normalize(frame, '20261016', listing_date='20261015')
+    frame.loc['20261015', 'volume'] = 1.
+    with pytest.raises(ValueError, match='before verified IPO'):
+        normalize(frame, '20261016', listing_date='20261016')
+
+
 def test_expired_membership_is_never_used(tmp_path):
     path = tmp_path / 'universe.json'
     atomic_save(path, dict(source='official-test', valid_through='20261015', snapshots={}))
