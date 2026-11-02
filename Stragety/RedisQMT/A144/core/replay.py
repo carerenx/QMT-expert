@@ -9,6 +9,7 @@ import pandas as pd
 
 from .trend import TrendConfig
 from .trend import exit_reason
+from .scale_out import partial_quantity
 
 
 INITIAL_CASH = 1_000_000.0
@@ -65,7 +66,7 @@ def executable(price: float, previous_adjusted: float, factor: float, code: str,
 def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
            execution=None, cost_scale: float = 1.0, baseline: bool = False,
            capacity_fraction: float = 0.001,
-           reserve_weak_slot: bool = True):
+           reserve_weak_slot: bool = True, entry_selector=None, partial_exit=None):
     execution = execution or DailyExecution()
     data = frame.loc[(frame["date"] >= start) & (frame["date"] <= end)]
     cash = INITIAL_CASH
@@ -73,6 +74,7 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
     cooldown = {}
     pending_entries = []
     pending_exits = {}
+    pending_reductions = {}
     reservations = []
     equity_rows = []
     trades = []
@@ -87,6 +89,11 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
 
         def quote(code):
             if code not in quotes:
+                row = rows[code]
+                if row.get("volume") == 0 and row.get("amount") == 0:
+                    # No daily trades: block fills and retain the daily valuation.
+                    quotes[code] = {"open": 0.0, "close": row["close"], "complete": True}
+                    return quotes[code]
                 quotes[code] = execution.quote(code, date, rows[code])
                 if not quotes[code]["complete"]:
                     raise ValueError(f"incomplete minute session: {code} {date}")
@@ -105,7 +112,7 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
             notional = position["units"] * price * factor
             proceeds = notional - fee(notional, "SELL", date, cost_scale)
             cash += proceeds
-            pnl = proceeds - position["cash_in"]
+            pnl = proceeds + position.get("realized_proceeds", 0.) - position["cash_in"]
             reason = pending_exits.pop(code)
             trades.append({"code": code, "entry_date": position["entry_date"], "exit_date": date,
                            "capital_in": position["cash_in"], "pnl": pnl,
@@ -116,6 +123,31 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
                 reservations.append(day_index + max(0, 20 - position["days"]))
             cooldown[code] = day_index + ((60 if pnl < 0 else 30) if baseline else config.cooldown)
             del positions[code]
+
+        for code in sorted(list(pending_reductions)):
+            if code not in positions:
+                pending_reductions.pop(code)
+                continue
+            if code not in rows or code in pending_exits:
+                continue
+            position = positions[code]
+            row = rows[code]
+            factor = row["adj_close"] / row["close"]
+            price = float(quote(code)["open"])
+            if not executable(price, row["previous"], factor, code, "SELL"):
+                continue
+            quantity = partial_quantity(position["units"], factor, pending_reductions[code], code)
+            pending_reductions.pop(code)
+            if quantity <= 0:
+                continue
+            notional = quantity * price
+            proceeds = notional - fee(notional, "SELL", date, cost_scale)
+            cash += proceeds
+            position["units"] -= quantity / factor
+            position["realized_proceeds"] = position.get("realized_proceeds", 0.) + proceeds
+            position["partial_done"] = True
+            fills.append({"date": date, "code": code, "side": "SELL", "price": price,
+                          "notional": notional, "reason": "partial-profit"})
 
         slots = config.max_positions - len(positions) - len(reservations)
         entries = 0
@@ -128,7 +160,16 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
             row = rows[code]
             factor = row["adj_close"] / row["close"]
             price = float(quote(code)["open"])
+            entry_quote = None
+            if price > 0 and callable(getattr(type(execution), "entry_quote", None)):
+                entry_quote = execution.entry_quote(code, date, row)
+                price = float(entry_quote["price"])
             if not executable(price, row["previous"], factor, code, "BUY"):
+                continue
+            entry_gap = price * factor / row["previous"] - 1
+            if config.min_entry_gap is not None and entry_gap < config.min_entry_gap:
+                continue
+            if config.max_entry_gap is not None and entry_gap > config.max_entry_gap:
                 continue
             budget = min(cash, last_equity * plan["weight"], plan["capacity"])
             quantity = buy_quantity(budget, price, code, cost_scale)
@@ -141,8 +182,11 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
             positions[code] = {"units": quantity / factor, "cash_in": cash_in,
                                "entry_price": adjusted_price, "entry_date": date,
                                "peak": adjusted_price, "mark": adjusted_price, "days": 0}
-            fills.append({"date": date, "code": code, "side": "BUY", "price": price,
-                          "notional": notional, "reason": config.entry})
+            fill = {"date": date, "code": code, "side": "BUY", "price": price,
+                    "notional": notional, "reason": config.entry}
+            if entry_quote is not None:
+                fill["time"] = entry_quote["time"]
+            fills.append(fill)
             slots -= 1
             entries += 1
         pending_entries = []
@@ -174,6 +218,10 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
                 reason = exit_reason(position, row, config)
             if reason:
                 pending_exits[code] = reason
+            elif partial_exit is not None and not position.get("partial_done", False) and code not in pending_reductions:
+                fraction = partial_exit(position, row)
+                if fraction > 0:
+                    pending_reductions[code] = fraction
         market_value = sum(p["units"] * p["mark"] for p in positions.values())
         last_equity = cash + market_value
         if cash < -1e-6:
@@ -183,6 +231,11 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
         slots = config.max_positions - len(positions) + len(pending_exits) - len(reservations)
         candidates = daily[1].loc[daily[1]["entry"]].sort_values(
             ["score", "code"], ascending=[False, True])
+        if entry_selector is not None:
+            eligible = ~candidates.code.isin(positions) & candidates.code.map(
+                lambda code: cooldown.get(code, -1) <= day_index)
+            candidates = entry_selector(date, candidates.loc[eligible], tuple(positions),
+                                        max(0, min(slots, config.max_entries)))
         for row in candidates.to_dict("records"):
             code = row["code"]
             if code in positions or cooldown.get(code, -1) > day_index:
@@ -205,4 +258,6 @@ def replay(frame: pd.DataFrame, config: TrendConfig, start: str, end: str,
     results["execution"] = execution.label
     results["open_positions"] = len(positions)
     results["cost_scale"] = cost_scale
+    if partial_exit is not None:
+        results["partial_sells"] = sum(fill["reason"] == "partial-profit" for fill in fills)
     return results, equity, pd.DataFrame(trades), pd.DataFrame(fills)

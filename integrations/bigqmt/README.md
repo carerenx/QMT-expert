@@ -1,5 +1,34 @@
 # 在 QMT-expert 中用 miniQMT 策略接入大 QMT
 
+## 当前本机 Named Pipe 接入（2026-11-02）
+
+新版桥接、兼容层、客户端配置及 QMT 单文件源码已复制到 `integrations/bigqmt_pipe`。
+默认 `run_bigqmt.py` 使用该目录，不再依赖外部 `xtquant_big_convert` 源码。
+本目录旧集成和本地修改保留。详见 [当前部署说明](../bigqmt_pipe/README.md)。
+
+前提：在同一台 Windows 的大 QMT 中持续运行已验证的 `PIPE_ASCII_ALL_IN_ONE`
+模型。它将配置内嵌在模型顶部，不读取外部 `local_config.py`。当前下单开关保持关闭。
+
+在项目根目录执行：
+
+```powershell
+# 仅检查导入路径和账号，不连接、不启动策略
+& C:\Programs\Python314\python.exe run_bigqmt.py --check
+
+# 只读验证 ping、资金、持仓，不启动策略
+& C:\Programs\Python314\python.exe run_bigqmt.py --probe
+
+# 默认 v41 信号模式；启动前核对策略参数和历史行情有效范围
+& C:\Programs\Python314\python.exe run_bigqmt.py --mode signal
+```
+
+其他策略使用 `--strategy <策略文件路径>`，其余参数透传给策略。并非所有策略都使用
+`--mode signal`，应核对所选策略的命令行接口。外部 Python 仍需安装所选策略的依赖。
+本次已在此项目入口验证 `transport=pipe`、ping、资金、持仓；没有启动实际策略、
+没有下单或撤单，历史行情覆盖及交易回调不属于此次验证范围。
+
+下面原有 Redis/ZeroMQ 部署记录保留作历史参考，不是当前 Named Pipe 接入步骤。
+
 接入链路：`run_bigqmt.py → 本目录 src/xtquant 兼容层 → ZeroMQ RPC → 大 QMT 内置 Python → 行情 / 账户 / 委托 / 成交回报`。
 
 默认运行 `Stragety/MiniQMT_Stragety/DayT/DayTradeing_v41_stragety_miniqmt.py`。原策略文件和 `DayT/infra/connector.py` 不需要修改；直接运行原策略仍使用原来的 miniQMT 环境。只有通过新入口启动的进程才优先加载桥接兼容层。不要将本目录 `src` 加入全局 PYTHONPATH，也不要把这里的 `xtquant` 安装到日常 miniQMT 环境。
@@ -50,6 +79,12 @@ python -m venv .venv-bigqmt
 在大 QMT 中导入 `QMT_BigQMT_Bridge_v1.py`，通过内置 Python 运行，绑定与配置一致的资金账号。需要终端回调驱动，不能仅在外部命令行执行这个文件。服务端以 `run_time` 定时处理请求，示例间隔为 500 毫秒；该定时器在模型回测时无效。[Python API, p.42]，见仓库 `references/md/python/python_api.md`。
 
 大 QMT 端须有策略所需的历史日线和复权数据。本配置关闭后台历史下载任务；先在终端补齐数据。v41 读取前复权与不复权两套日线，日期或价格校验失败时原策略会锁单。
+
+### 历史行情范围（2026-10-10实测）
+
+RedisQMT日线抽样可取得上市以来的数据，最早验证到平安银行的1991-04-03，约35年；1分钟行情对600000.SH和300604.SZ的新读取样本约覆盖最近一年，首个完整交易日为2025-10-10。分钟边界是当前连接的观测结果，不是QMT统一下载上限。
+
+下载任务完成不等于行情有效，原始响应可能包含零价或零成交量填充行。数据范围、下载状态解释、回测核验要求及原始证据统一见[历史行情范围与下载核验](docs/HISTORICAL_DATA_COVERAGE.md)。
 
 ## 4. 检查与运行
 

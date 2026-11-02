@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""A144 v8: rank eligible leaders by momentum and efficiency, research only."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from Stragety.RedisQMT.A144.core.signal_runtime import run
+from Stragety.RedisQMT.A144.core.trend import TrendConfig
+
+
+CONFIG = TrendConfig(name="leader60_quality_ranking_strict", entry="leader", leader_horizon=60,
+                     trail_atr=5.0, risk_per_position=0.03, strict_market=True,
+                     min_efficiency=0.30, leader_efficiency_weight=0.30)
+
+
+def main(argv=None):
+    return run(CONFIG, argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

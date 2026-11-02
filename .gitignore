@@ -29,3 +29,6 @@ tests/*
 # 可以完整复现，不需要入库。
 *.parquet
 analysis/panel_*/raw/
+
+
+/output

@@ -1,0 +1,121 @@
+# -*- coding: utf-8 -*-
+"""Independent secondary combining first DayT dip entry and armed peak sellback."""
+import math
+
+import pandas as pd
+
+
+COMMODITY_CODES = ('159980.SZ', '159981.SZ', '159985.SZ')
+REVERSION_CODES = ('518880.SH', '513100.SH')
+CODES = COMMODITY_CODES+REVERSION_CODES
+WEIGHT = 1.
+MAX_ENTRIES_PER_CODE = 1
+
+
+def gates(macro, dates):
+    calendar = macro.drop_duplicates('date').sort_values('date').set_index('date')
+    weak = (~calendar.market_strict | calendar.breadth.lt(.4)).shift()
+    return {date: bool(weak.loc[date]) for date in dates}
+
+
+def daily_signals(daily, macro):
+    calendar = macro.drop_duplicates('date').sort_values('date').set_index('date')
+    prior_down = (~calendar.market_strict).shift()
+    result = {}
+    for code in COMMODITY_CODES:
+        frame = daily[code].sort_index()
+        average = frame.close.rolling(20, min_periods=20).mean()
+        momentum = frame.close.pct_change(60, fill_method=None)
+        amount = frame.amount.rolling(20, min_periods=20).mean()
+        good = frame.close.gt(average) & momentum.gt(0) & amount.ge(3e7)
+        result[code] = pd.DataFrame(dict(prior_ma20=average.shift(),
+            prior_momentum=momentum.shift(), prior_good=good.shift(fill_value=False)), index=frame.index)
+    scores = pd.DataFrame({code: result[code].prior_momentum.where(result[code].prior_good)
+                           for code in COMMODITY_CODES})
+    leader = scores.fillna(-float('inf')).idxmax(axis=1)
+    for code in COMMODITY_CODES:
+        result[code]['prior_leader'] = result[code].prior_good & leader.eq(code)
+        result[code]['prior_index_down'] = prior_down.reindex(result[code].index)
+        result[code]['is_reversion'] = False
+    for code in REVERSION_CODES:
+        frame = daily[code].sort_index()
+        delta = frame.close.diff()
+        gain = delta.clip(lower=0).ewm(alpha=.5, adjust=False, min_periods=20).mean()
+        loss = (-delta.clip(upper=0)).ewm(alpha=.5, adjust=False, min_periods=20).mean()
+        rsi = 100*gain/(gain+loss).replace(0, float('nan'))
+        average = frame.close.rolling(200, min_periods=200).mean()
+        good = frame.close.gt(average) & rsi.lt(10) & frame.amount.rolling(20, min_periods=20).mean().ge(3e7)
+        result[code] = pd.DataFrame(dict(prior_gold_good=good.shift(fill_value=False),
+            prior_gold_rsi=rsi.shift(), prior_gold_ma200=average.shift(),
+            prior_gold_close=frame.close.shift(), prior_recovery_ma5=frame.close.rolling(5, min_periods=5).mean().shift()), index=frame.index)
+    scores = pd.DataFrame({code: result[code].prior_gold_rsi.where(result[code].prior_gold_good)
+                           for code in REVERSION_CODES})
+    leader = scores.fillna(float('inf')).idxmin(axis=1)
+    for code in REVERSION_CODES:
+        result[code]['prior_reversion_leader'] = result[code].prior_gold_good & leader.eq(code)
+        result[code]['is_reversion'] = True
+    return result
+
+
+def features(bars):
+    result = bars.copy()
+    anchor = float(result['dayt_auction_open'].iloc[0])
+    maximum_trail = 0.
+    trough = None
+    finished = False
+    events = []
+    for row in result.itertuples():
+        ready = False
+        if not finished and row.volume > 0:
+            if anchor <= 0 and row.volume > 0:
+                anchor = float(row.open)
+            if anchor > 0:
+                if trough is None:
+                    maximum_trail = max(maximum_trail, round(row.close*.98, 3))
+                    trigger = max(round(anchor*.97, 3), maximum_trail)
+                    if row.close <= trigger:
+                        trough = float(row.close)
+                else:
+                    trough = min(trough, row.close)
+                    if row.volume > 0 and (row.close-trough)/trough >= .001:
+                        ready = True
+                        finished = True
+        events.append(ready)
+    result['dayt_first_bounce'] = events
+    return result
+
+
+def entry(row, time, enabled, unused):
+    if not enabled or not '093100' <= time < '142000' or not row['dayt_first_bounce']:
+        return False
+    if row['is_reversion']:
+        return bool(row['prior_reversion_leader'])
+    return bool(row['prior_index_down'] and row['prior_leader'])
+
+
+def estimated_mean_exit_net(position, row):
+    price = math.floor(row['low']*.997*1000+1e-8)/1000
+    proceeds = price*position['quantity']
+    future_fee = max(5., proceeds*.0001)
+    return (position['sell_notional']-position['sell_fee']+proceeds-future_fee
+            -position['buy_notional']-position['buy_fee'])
+
+
+def exit_reason(position, row, time, age, unused=None):
+    change = row['close']/(position['buy_notional']/position['bought'])-1
+    hold_days = 5 if row['is_reversion'] else 10
+    if change <= -.04:
+        return 'stop'
+    peak = position.get('dayt_sell_peak', 0.)
+    if peak:
+        peak = max(peak, row['close'])
+        position['dayt_sell_peak'] = peak
+        if (peak-row['close'])/peak >= .001:
+            return 'dayt_peak_pullback'
+    elif change >= .012:
+        position['dayt_sell_peak'] = row['close']
+    if row['is_reversion'] and row['close'] >= row['prior_recovery_ma5'] and estimated_mean_exit_net(position, row) > 0:
+        return 'mean_recovery'
+    if age >= hold_days*240 and time >= '145000':
+        return 'holding_expiry'
+    return ''

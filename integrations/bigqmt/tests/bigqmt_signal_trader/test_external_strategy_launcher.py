@@ -33,6 +33,17 @@ class ExternalStrategyLauncherTest(unittest.TestCase):
             strategy = self._strategy_tree(tmp, "8899")
             self.assertEqual(_load_strategy_account(strategy), "8899")
 
+    def test_loads_account_from_strategy_local_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            strategy = self._strategy_tree(tmp, "parent-account")
+            strategy = strategy.parent / "A144" / "strategy.py"
+            strategy.parent.mkdir()
+            strategy.write_text("RESULT = 'ran'\n", encoding="utf-8")
+            (strategy.parent / "config.py").write_text(
+                "ACCOUNT = 'a144-account'\n", encoding="utf-8"
+            )
+            self.assertEqual(_load_strategy_account(strategy), "a144-account")
+
     def test_loads_account_when_strategy_is_in_a_category_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             strategy_root = Path(tmp) / "MiniQMT_Stragety"

@@ -7,13 +7,15 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parent
-BRIDGE_SRC = ROOT / "integrations" / "bigqmt" / "src"
+BRIDGE_SRC = ROOT / "integrations" / "bigqmt_pipe" / "src"
 DEFAULT_STRATEGY = ROOT / "Stragety" / "MiniQMT_Stragety" / "DayT" / "DayTradeing_v41_stragety_miniqmt.py"
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--strategy", type=Path, default=DEFAULT_STRATEGY)
+    parser.add_argument("--bridge-src", type=Path,
+                        help="use another bridge src directory, e.g. a Named Pipe-capable checkout")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="check local setup without connecting")
     group.add_argument("--probe", action="store_true", help="query bridge health, account and positions only")
@@ -23,12 +25,26 @@ def main(argv=None):
     if (args.check or args.probe) and forwarded:
         parser.error("strategy arguments cannot be combined with --check or --probe")
 
-    sys.path.insert(0, str(BRIDGE_SRC))
+    bridge_src = args.bridge_src.expanduser().resolve() if args.bridge_src else BRIDGE_SRC
+    if not (bridge_src / "xtquant" / "__init__.py").is_file():
+        parser.error("bridge src must contain xtquant/__init__.py: %s" % bridge_src)
+    sys.path.insert(0, str(bridge_src))
     # Verify BEFORE importing the adapter: a previously imported native SDK must
     # never service even one query from this explicitly Big QMT entry.
     import xtquant
-    if Path(xtquant.__file__).resolve().parent != BRIDGE_SRC / "xtquant":
+    if Path(xtquant.__file__).resolve().parent != bridge_src / "xtquant":
         parser.error("native xtquant is already loaded; start this entry in a fresh Python process")
+
+    if args.bridge_src:
+        # This helper belongs to QMT-expert; the selected upstream checkout
+        # supplies the bridge and shim, but need not ship our strategy launcher.
+        import bigqmt_signal_trader
+        name = "bigqmt_signal_trader.external_strategy_launcher"
+        spec = importlib.util.spec_from_file_location(
+            name, BRIDGE_SRC / "bigqmt_signal_trader" / "external_strategy_launcher.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
 
     from bigqmt_signal_trader.external_strategy_launcher import (
         ExternalStrategyLaunchError, _load_strategy_account, launch_strategy,
@@ -42,11 +58,11 @@ def main(argv=None):
         account = _load_strategy_account(strategy)
         config = load_client_config()
         if str(config.get("account_id") or "") != account:
-            parser.error("client config ACCOUNT must match the strategy core/config.py ACCOUNT; see integrations/bigqmt/README.md")
+            parser.error("client config ACCOUNT must match the strategy config ACCOUNT; see integrations/bigqmt_pipe/README.md")
         transport = (config.get("redis_config") or {}).get("transport", "redis")
         dependency = {"zmq": "zmq", "redis": "redis", "mysql": "pymysql"}.get(transport)
         if dependency and importlib.util.find_spec(dependency) is None:
-            parser.error("missing %s; install integrations/bigqmt/requirements.txt" % dependency)
+            parser.error("missing %s; install integrations/bigqmt_pipe/requirements.txt" % dependency)
         print("[BigQMT] strategy=%s\n[BigQMT] xtquant=%s\n[BigQMT] transport=%s" % (
             strategy, xtquant.__file__, transport), flush=True)
         if args.check:

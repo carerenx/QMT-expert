@@ -1,5 +1,31 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# A144 v12：中证500领涨主策略 + 七ETF弱市第二策略（大QMT Named Pipe）
+#
+# 运行：在项目根目录使用外部Python 3.10+，保持QMT管道桥接模型运行。
+# 检查（不下单）：
+#   python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode check --capital 90000
+# 实盘（会提交买卖及撤单）：
+#   python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode live --capital 90000
+# 90000仅为示例，实盘须改为不超过实际可用现金的投入；已有账本不会被--capital重置。
+# 成分文件默认自动准备，无需--universe。重启执行原live命令，保留同一state账本。
+#
+# 策略摘要（使用前一完成日信号）：
+# 1. 指数>=MA60且广度>=40%时允许主策略买入；任一不满足时启用第二策略。
+#    指数跌破MA60触发主策略退出；仅广度不足只停止新买。第二策略保留自身退出。
+# 2. 主策略：选中证500动量前5%的趋势股，结合效率、成交额、ATR及广度改善过滤；
+#    最多5只、每天最多2次新母单、单只目标预算<=净值20%。10%硬止损，另有指数、
+#    盈利保护、5倍ATR跟踪、MA50破位和领涨资格退出；受股票T+1限制。
+# 3. 第二策略：商品ETF选站上MA20的60日动量领先者；回归ETF选MA200上方、
+#    RSI2<10的超卖领先者。完成分钟09:31—09:40确认价格条件后，随后分钟买入。
+#    商品组额外要求前日指数<MA60。共同4%止损；商品6%止盈/10日等价分钟到期，
+#    回归2%止盈/5日等价分钟到期，另有MA5恢复且估计整笔净收益>0的退出。
+# 4. 两策略共享资金，现金及成交量约束可缩小实际订单；先记录意图再提交，按券商
+#    成交恢复，未确认撤单不替换。停机时不能执行新止损，不补发过期买入。
+#
+# 常用阈值见下方常量；详细逻辑、执行时段和参数调节见同目录DualRegimePortfolio.md。
+# 日线候选/交易计划不等于订单或成交。源码哈希也包含注释，已有账本改文件须核对迁移；
+# 不删除状态或修改保存的哈希绕过校验。历史研究结果不保证未来收益或胜率。
 """CSI500 leadership primary plus seven-ETF weak-market secondary.
 
 Independent implementation of the accepted v10/v25 research combination.

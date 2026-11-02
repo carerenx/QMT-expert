@@ -21,6 +21,45 @@ def intent(side='BUY', signal='20261016093100', quantity=200):
                 signal=signal, execution_stamp=signal[:8] + '093200')
 
 
+def test_direct_check_uses_local_pipe_bridge_before_market_preparation(tmp_path, monkeypatch):
+    from Stragety.RedisQMT.A144.core import dual_regime_runtime as runtime
+    from Stragety.RedisQMT.A144.config import ACCOUNT
+    bridge = runtime.ROOT / 'integrations/bigqmt_pipe/src'
+    monkeypatch.syspath_prepend(str(bridge))
+    from bigqmt_signal_trader import xtquant_compat as compat
+    calls = []
+
+    def rpc(method):
+        calls.append(method)
+        return {'pong': True, 'account_id': ACCOUNT}
+
+    def stop_before_data(*args, **kwargs):
+        raise RuntimeError('test-data-boundary')
+
+    monkeypatch.setattr(compat, 'load_client_config', lambda: {
+        'account_id': ACCOUNT, 'redis_config': {'transport': 'pipe'}})
+    monkeypatch.setattr(compat, 'configure', lambda **kwargs: (
+        SimpleNamespace(client=SimpleNamespace(call=rpc)), object()))
+    monkeypatch.setattr(runtime, 'ensure_membership', stop_before_data)
+    test_policy = SimpleNamespace(__file__=str(tmp_path / 'strategy.py'),
+                                  STRATEGY='test-pipe', PRIMARY_BREADTH_LOOKBACK=5)
+    with pytest.raises(RuntimeError, match='test-data-boundary'):
+        runtime.run(test_policy, ['--mode', 'check', '--capital', '90000'])
+    assert calls == ['ping']
+
+
+def test_market_request_matches_deployed_pipe_api(monkeypatch):
+    from unittest.mock import create_autospec
+    from Stragety.RedisQMT.A144.core import dual_regime_runtime as runtime
+    monkeypatch.syspath_prepend(str(runtime.ROOT / 'integrations/bigqmt_pipe/src'))
+    from bigqmt_signal_trader.xtquant_compat import BigQmtXtData
+    data = create_autospec(BigQmtXtData, instance=True)
+    data.get_market_data_ex.return_value = {'sample': 'bars'}
+    result = Market(data, None, policy).request({'600000.SH'}, '1d', '20261102', 300)
+    assert result == {'sample': 'bars'}
+    assert data.get_market_data_ex.call_args.kwargs['use_formula'] is False
+
+
 def reported(order, quantity=100, price=2., status=55):
     return SimpleNamespace(order_remark=order['key'], stock_code=order['code'],
         order_type=23 if order['side'] == 'BUY' else 24, order_volume=order['quantity'],

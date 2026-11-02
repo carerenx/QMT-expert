@@ -187,9 +187,13 @@ def _acquire_current_job(redis_client, account_id):
 def _download_chunk(market_data, method, chunk, period, start_time, end_time, incrementally):
     if method == "download_history_data":
         for code in chunk:
-            market_data.download_history_data(code, period, start_time, end_time, incrementally)
+            result = market_data.download_history_data(code, period, start_time, end_time, incrementally)
+            if result is False:
+                raise RuntimeError("download_history_data returned False for %s" % code)
     else:
-        market_data.download_history_data2(chunk, period, start_time, end_time, incrementally)
+        result = market_data.download_history_data2(chunk, period, start_time, end_time, incrementally)
+        if result is False:
+            raise RuntimeError("download_history_data2 returned False")
 
 
 def pump_download_jobs(

@@ -373,6 +373,7 @@ class BigQmtMarketDataProvider:
             "end_time": end_time,
             "count": count,
             "dividend_type": dividend_type,
+            "fill_data": fill_data,
         }
         if method_name == "get_local_data" and data_dir is not None:
             mini_kwargs["data_dir"] = data_dir
@@ -387,7 +388,7 @@ class BigQmtMarketDataProvider:
         if method_name == "get_local_data" and data_dir is not None:
             positional_tail_kwargs["data_dir"] = data_dir
 
-        return [
+        shapes = [
             (method_name, (), big_kwargs),
             (method_name, (), mini_kwargs),
             (
@@ -422,6 +423,10 @@ class BigQmtMarketDataProvider:
                 },
             ),
         ]
+        if "subscribe" in params:
+            for _, _, shape_kwargs in shapes:
+                shape_kwargs["subscribe"] = params["subscribe"]
+        return shapes
 
     def get_ticks(self, codes):
         """Snapshot quotes, keyed the way the CALLER spelled each code.
@@ -533,10 +538,12 @@ class BigQmtMarketDataProvider:
         return self._call_first_supported(shapes)
 
     def get_local_data(self, **kwargs):
-        shapes = self._market_data_shapes("get_local_data", **kwargs)
-        if hasattr(self.context_info, "get_market_data"):
-            shapes.extend(self._market_data_shapes("get_market_data", **kwargs))
-        return self._call_first_supported(shapes)
+        # ContextInfo's legacy local API takes one code and divid_type, unlike
+        # the MiniQMT batch API. The documented replacement retains batch/field
+        # semantics and reads local data only when subscribe is explicitly off.
+        params = dict(kwargs)
+        params["subscribe"] = False
+        return self.get_market_data_ex(**params)
 
     def get_divid_factors(self, stock_code, start_time="", end_time=""):
         # ContextInfo stub: get_divid_factors(marketAndStock, date='') — only 2

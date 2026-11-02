@@ -3,17 +3,46 @@
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 from unittest import mock
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "integrations/bigqmt/src"))
+sys.path.insert(0, str(ROOT / "integrations/bigqmt_pipe/src"))
 
 import run_bigqmt as entry
 from bigqmt_signal_trader import external_strategy_launcher as launcher
 from bigqmt_signal_trader import xtquant_compat as compat
+
+
+def test_alternate_bridge_launches_with_its_own_shim_and_config(tmp_path):
+    bridge = tmp_path / "bridge"
+    bridge.mkdir()
+    for package in ("bigqmt_signal_trader", "xtquant"):
+        shutil.copytree(ROOT / "integrations/bigqmt/src" / package,
+                        bridge / package, ignore=shutil.ignore_patterns("__pycache__"))
+    (bridge / "bigqmt_signal_trader/external_strategy_launcher.py").unlink()
+    (bridge / "bigqmt_signal_trader_client_config.py").write_text(
+        "BIGQMT_ACCOUNT_ID = 'test-account'\n"
+        "BIGQMT_REDIS_CONFIG = {'transport': 'zmq'}\n", encoding="utf-8")
+    strategy = tmp_path / "strategy.py"
+    (tmp_path / "config.py").write_text("ACCOUNT = 'test-account'\n", encoding="utf-8")
+    strategy.write_text(
+        "import sys, xtquant\n"
+        "from pathlib import Path\n"
+        "from bigqmt_signal_trader.xtquant_compat import get_default_client\n"
+        "assert Path(xtquant.__file__).resolve().parent == Path(%r) / 'xtquant'\n"
+        "assert get_default_client().account_id == 'test-account'\n"
+        "assert sys.argv[1:] == ['--mode', 'signal']\n"
+        "print('alternate bridge strategy OK')\n" % str(bridge), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "run_bigqmt.py"), "--bridge-src", str(bridge),
+         "--strategy", str(strategy), "--mode", "signal"],
+        cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "alternate bridge strategy OK" in result.stdout
 
 
 @pytest.fixture
@@ -105,7 +134,10 @@ def test_template_pair_matches_and_disables_orders():
     client = runpy.run_path(str(src / "bigqmt_signal_trader_client_config.example.py"))
     server = runpy.run_path(str(src / "bigqmt_signal_trader_local_config.example.py"))
     assert client["BIGQMT_ACCOUNT_ID"] == server["BIGQMT_ACCOUNT_ID"]
-    assert client["BIGQMT_REDIS_CONFIG"]["zmq"]["connect_address"] == server["BIGQMT_REDIS_CONFIG"]["zmq"]["bind_address"]
+    assert client["BIGQMT_REDIS_CONFIG"]["transport"] == server["BIGQMT_REDIS_CONFIG"]["transport"] == "pipe"
+    assert client["BIGQMT_REDIS_CONFIG"]["pipe"]["pipe_name"] == server["BIGQMT_REDIS_CONFIG"]["pipe"]["pipe_name"]
+    assert client["BIGQMT_REDIS_CONFIG"]["redis_enabled"] is False
+    assert server["BIGQMT_REDIS_CONFIG"]["redis_enabled"] is False
     assert server["BIGQMT_REDIS_CONFIG"]["rpc_allow_order_methods"] is False
     assert client["BIGQMT_LOCAL_CACHE_CONFIG"]["fallback_rpc"] is True
 

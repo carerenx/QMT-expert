@@ -80,6 +80,28 @@ class FakeMarketData:
 
 
 class DownloadJobsTest(unittest.TestCase):
+    def test_explicit_false_download_result_marks_job_failed(self):
+        class RejectedMarketData(FakeMarketData):
+            def download_history_data(self, *args):
+                super().download_history_data(*args)
+                return False
+
+            def download_history_data2(self, *args):
+                super().download_history_data2(*args)
+                return False
+
+        for method in ("download_history_data", "download_history_data2"):
+            with self.subTest(method=method):
+                redis = FakeRedis()
+                market = RejectedMarketData()
+                job = submit_download_job(redis, "acct", ["a"], "1m", method=method)
+                result = pump_download_jobs(redis, market, "acct")
+                status = read_download_status(redis, "acct", job["job_id"])
+                self.assertEqual(result["state"], "failed")
+                self.assertEqual(status["done"], 0)
+                self.assertIn("False", status["error"])
+                self.assertIsNone(redis.get(current_key("acct")))
+
     def test_submit_queues_pending_job(self):
         r = FakeRedis()
         job = submit_download_job(r, "acct", ["600000.SH", "000001.SZ"], "1d", chunk_size=1)

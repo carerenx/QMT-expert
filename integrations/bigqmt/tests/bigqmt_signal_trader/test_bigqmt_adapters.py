@@ -76,6 +76,61 @@ class FakeMarketDataFallbackContext(FakeContext):
 
 
 class BigQmtAdaptersTest(unittest.TestCase):
+    def test_local_read_uses_ex_without_server_subscription(self):
+        class Context:
+            def get_market_data_ex_ori(self, fields=None, stock_code=None, subscribe=True, **kwargs):
+                self.received_subscribe = subscribe
+                return {"600000.SH": [["20260128093100", 10.0]]}
+
+            def get_market_data(self, *args, **kwargs):
+                raise AssertionError("Local read must not fall back to a subscribing legacy read")
+
+        context = Context()
+        provider = BigQmtMarketDataProvider(context, native_xtdata=False)
+        data = provider.get_local_data(field_list=["close"], stock_list=["600000.SH"], period="1m")
+        self.assertFalse(context.received_subscribe)
+        self.assertEqual(data["600000.SH"]["records"], [["20260128093100", 10.0]])
+
+    def test_explicit_subscribe_option_reaches_context(self):
+        class Context:
+            def get_market_data_ex_ori(self, fields=None, stock_code=None, subscribe=True, **kwargs):
+                self.received_subscribe = subscribe
+                return {"600000.SH": []}
+
+        context = Context()
+        provider = BigQmtMarketDataProvider(context, native_xtdata=False)
+        provider.get_market_data_ex(field_list=["close"], stock_list=["600000.SH"], subscribe=False)
+        self.assertFalse(context.received_subscribe)
+
+    def test_local_read_fails_if_context_cannot_disable_subscription(self):
+        class Context(FakeMarketDataContext):
+            pass
+
+        context = Context()
+        provider = BigQmtMarketDataProvider(context, native_xtdata=False)
+        with self.assertRaises(TypeError):
+            provider.get_local_data(field_list=["close"], stock_list=["600000.SH"], period="1m")
+        self.assertEqual(context.market_calls, [])
+
+    def test_market_read_preserves_explicit_fill_data_option(self):
+        class FillContext:
+            def get_market_data_ex(self, fields=None, stock_code=None, fill_data=True, **kwargs):
+                self.received_fill = fill_data
+                return {"600000.SH": []}
+
+        class RawFillContext(FillContext):
+            def get_market_data_ex_ori(self, fields=None, stock_code=None, fill_data=True, **kwargs):
+                self.received_fill = fill_data
+                return {"600000.SH": []}
+
+        for context_type in (FillContext, RawFillContext):
+            for requested in (False, True):
+                with self.subTest(context=context_type.__name__, fill_data=requested):
+                    context = context_type()
+                    provider = BigQmtMarketDataProvider(context, native_xtdata=False)
+                    provider.get_market_data_ex(field_list=["close"], stock_list=["600000.SH"],
+                                                period="1m", fill_data=requested)
+                    self.assertEqual(context.received_fill, requested)
 
     def test_position_code_keeps_future_contract_code(self):
         # A futures row always carries the XunTou-short exchange token, so a

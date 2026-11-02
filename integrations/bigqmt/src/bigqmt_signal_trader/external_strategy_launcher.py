@@ -19,16 +19,21 @@ class ExternalStrategyLaunchError(RuntimeError):
 def _strategy_project_root(strategy_file):
     """Find the closest ancestor that owns the strategy's shared core package."""
     strategy_file = Path(strategy_file).expanduser().resolve()
+    if (strategy_file.parent / "config.py").is_file():
+        return strategy_file.parent
     for candidate in (strategy_file.parent,) + tuple(strategy_file.parent.parents):
         if (candidate / "core" / "config.py").is_file():
             return candidate
     raise ExternalStrategyLaunchError(
-        "strategy dependency is missing: core/config.py above %s" % strategy_file
+        "strategy dependency is missing: local config.py or core/config.py above %s" % strategy_file
     )
 
 
 def _load_strategy_account(strategy_file):
-    config_file = _strategy_project_root(strategy_file) / "core" / "config.py"
+    project_root = _strategy_project_root(strategy_file)
+    config_file = project_root / "config.py"
+    if not config_file.is_file():
+        config_file = project_root / "core" / "config.py"
     if not config_file.is_file():
         raise ExternalStrategyLaunchError(
             "strategy dependency is missing: %s" % config_file
@@ -42,15 +47,16 @@ def _load_strategy_account(strategy_file):
     spec.loader.exec_module(module)
     account_id = str(getattr(module, "ACCOUNT", "") or "").strip()
     if not account_id:
-        raise ExternalStrategyLaunchError("core.config.ACCOUNT is empty")
+        raise ExternalStrategyLaunchError("strategy config ACCOUNT is empty: %s" % config_file)
     return account_id
 
 
 def _assert_project_xtquant_shim():
     import xtquant
+    from . import xtquant_compat
 
     actual = Path(xtquant.__file__).resolve()
-    expected_dir = Path(__file__).resolve().parents[1] / "xtquant"
+    expected_dir = Path(xtquant_compat.__file__).resolve().parents[1] / "xtquant"
     if actual.parent != expected_dir.resolve():
         raise ExternalStrategyLaunchError(
             "real MiniQMT xtquant was imported instead of this project's shim: %s" % actual

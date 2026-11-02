@@ -22,6 +22,10 @@ class TrendConfig:
     hard_stop: float = 0.10
     cooldown: int = 10
     leader_horizon: int = 60
+    min_efficiency: float | None = None
+    leader_efficiency_weight: float = 0.0
+    min_entry_gap: float | None = None
+    max_entry_gap: float | None = None
 
 
 def features(frame: pd.DataFrame, benchmark: pd.DataFrame) -> pd.DataFrame:
@@ -74,7 +78,7 @@ def features(frame: pd.DataFrame, benchmark: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-def signals(frame: pd.DataFrame, config: TrendConfig) -> pd.DataFrame:
+def signals(frame: pd.DataFrame, config: TrendConfig, log_filter=None) -> pd.DataFrame:
     """Return immutable close-time entry, exit and sizing inputs."""
     frame = frame.copy()
     trend = ((frame["adj_close"] > frame["ma50"]) &
@@ -95,15 +99,31 @@ def signals(frame: pd.DataFrame, config: TrendConfig) -> pd.DataFrame:
     if config.entry not in entry_modes:
         raise ValueError("unknown entry mode")
     market = frame["market_strict"] if config.strict_market else frame["market_ok"]
-    frame["entry"] = (trend & entry_modes[config.entry] & market &
-                       (frame["breadth"] >= 0.4) & (frame["age"] >= 130) &
-                       (frame["amount20"] >= 3e7) &
-                       frame["atr_pct"].between(0.01, 0.08) &
-                       (frame["ret"] < 0.095))
+    filters = (
+        ("Trend: close>MA50, MA20>MA50, MA50 rising, momentum60>0 and rank in top 30%", trend),
+        (f"Entry mode={config.entry}", entry_modes[config.entry]),
+        ("Market: index close>=MA60" if config.strict_market else "Market: index close>=MA20*0.97", market),
+        ("Breadth: stocks above MA50>=40%", frame["breadth"] >= 0.4),
+        ("History>=130 bars", frame["age"] >= 130),
+        ("Average daily turnover20>=30 million CNY", frame["amount20"] >= 3e7),
+        ("ATR ratio between 1% and 8%", frame["atr_pct"].between(0.01, 0.08)),
+        ("Daily return<9.5%", frame["ret"] < 0.095),
+    )
+    if config.min_efficiency is not None:
+        filters += ((f"Directional efficiency20>={config.min_efficiency:.2f}",
+                     frame["efficiency"] >= config.min_efficiency),)
+    frame["entry"] = True
+    for name, mask in filters:
+        frame["entry"] &= mask
+        if log_filter is not None:
+            log_filter(name, mask, frame["entry"])
     frame["score"] = (0.7 * frame["mom60_rank"] + 0.3 * frame["efficiency_rank"] +
                        config.impact_weight * frame["impact20_rank"])
     if config.entry == "leader":
         frame["score"] = leader_rank
+        if config.leader_efficiency_weight > 0:
+            frame["score"] = ((1 - config.leader_efficiency_weight) * leader_rank +
+                              config.leader_efficiency_weight * frame["efficiency_rank"])
     frame["leader_rank"] = leader_rank
     frame["market_exit"] = ~market
     frame["weight"] = np.minimum(config.max_weight,

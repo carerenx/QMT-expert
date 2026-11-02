@@ -2,7 +2,7 @@
 """Minute-clock Redis QMT portfolio runtime with restart-safe ownership.
 
 Market API basis: Python API pp.70-71 (OHLCV, 1d/1m, unadjusted/front).
-Timeout/chunk/bypass_formula and order methods are verified project shim APIs.
+Timeout/chunk/use_formula and order methods are verified project shim APIs.
 """
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ class Market:
             field_list=['open', 'high', 'low', 'close', 'volume', 'amount'],
             stock_list=sorted(codes), period=period, start_time=start, end_time=end,
             count=count, dividend_type=adjustment, fill_data=False,
-            chunk_size=40, timeout_seconds=30, bypass_formula=True)
+            chunk_size=40, timeout_seconds=30, use_formula=False)
 
     def prepare(self, today, state):
         if self.day == today:
@@ -358,21 +358,23 @@ def run(policy, argv=None):
         sys.stdout.reconfigure(encoding='utf-8')
     if not math.isfinite(args.capital) or args.capital <= 0:
         parser.error('capital must be finite and positive')
-    sys.path.insert(0, str(ROOT / 'integrations/bigqmt/src'))
+    bridge_src = ROOT / 'integrations/bigqmt_pipe/src'
+    sys.path.insert(0, str(bridge_src))
     import xtquant
-    if Path(xtquant.__file__).resolve().parent != ROOT / 'integrations/bigqmt/src/xtquant':
+    if Path(xtquant.__file__).resolve().parent != bridge_src / 'xtquant':
         raise RuntimeError('Expected project BigQMT shim; native SDK already imported')
     from bigqmt_signal_trader.xtquant_compat import StockAccount, configure, load_client_config
     from Stragety.RedisQMT.A144.config import ACCOUNT
     config = load_client_config()
-    if str(config.get('account_id')) != ACCOUNT or config.get('redis_config', {}).get('transport', 'redis') != 'redis':
-        raise RuntimeError('Expected configured strategy account over Redis transport')
+    if str(config.get('account_id')) != ACCOUNT or config.get('redis_config', {}).get('transport', 'redis') != 'pipe':
+        raise RuntimeError('Expected configured strategy account over Named Pipe transport')
     account_lock = Path(policy.__file__).parent / 'state' / f'{policy.STRATEGY}_{ACCOUNT}'
     with exclusive_state(account_lock):
         trader, xtdata = configure(account_id=ACCOUNT, timeout_seconds=30)
         ping = trader.client.call('ping')
         if not isinstance(ping, dict) or not ping.get('pong') or str(ping.get('account_id')) != ACCOUNT:
-            raise RuntimeError('Redis QMT ping/account validation failed')
+            raise RuntimeError('Named Pipe QMT ping/account validation failed')
+        _log('[Bridge] transport=pipe; local integration=bigqmt_pipe; account confirmed')
         auto_universe = args.universe.resolve() == default_universe.resolve()
         today = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d')
         _log(f'[Universe] checking {args.universe}; missing/default-expired file is prepared from official CSI sources')

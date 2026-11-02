@@ -1,5 +1,10 @@
 # A144 v12 主策略与弱市第二策略
 
+2026-11-02：直接启动本策略已改用项目内 `integrations/bigqmt_pipe/src`，客户端配置
+必须为 `transport=pipe`，不再连接旧 Redis 集成。命令保持不变；QMT 中须持续运行
+`PIPE_ASCII_ALL_IN_ONE` 模型。当前服务端下单开关关闭，`check` 不发单，不能据此认定
+`live` 已可交易。修改了运行源码，已有账本仍须通过原有策略哈希核对，不自动迁移或重置。
+
 入口：[A144_v12_DualRegimePortfolio.py](A144_v12_DualRegimePortfolio.py)。用户于2026-10-16接受当前研究候选，要求实施自动交易并支持策略中断后重启。该决定不改变既有回测数据，也不表示已获得独立样本验证。
 
 ## 策略与切换
