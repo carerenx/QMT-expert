@@ -950,6 +950,7 @@ class BigQmtXtData:
         chunk_size=None,
         timeout_seconds=None,
         bypass_formula=False,
+        use_formula=None,
     ):
         """Pull bars over RPC, in batches of ``chunk_size`` codes.
 
@@ -964,7 +965,12 @@ class BigQmtXtData:
         its own codes -- the rest are returned.
 
         ``chunk_size=0`` restores the old single-request behaviour.
+
+        ``use_formula`` matches the newer bridge API. When supplied, it
+        overrides ``bypass_formula``; False forces every batch through RPC.
         """
+        if use_formula is not None:
+            bypass_formula = not use_formula
         codes = list(stock_list or [])
         base = dict(
             field_list=list(field_list or []),

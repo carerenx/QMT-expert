@@ -7,14 +7,20 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parent
-BRIDGE_SRC = ROOT / "integrations" / "bigqmt_pipe" / "src"
+# 桥接方式的调整默认路径，redis 或者 pipe
+# BRIDGE_SRC = ROOT / "integrations" / "bigqmt_pipe" / "src"
+BRIDGE_SRC = ROOT / "integrations" / "bigqmt_redis" / "src"
+
 DEFAULT_STRATEGY = ROOT / "Stragety" / "MiniQMT_Stragety" / "DayT" / "DayTradeing_v41_stragety_miniqmt.py"
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--strategy", type=Path, default=DEFAULT_STRATEGY)
-    parser.add_argument("--bridge-src", type=Path,
+    bridge_group = parser.add_mutually_exclusive_group()
+    bridge_group.add_argument("--bridge", choices=("pipe", "redis"),
+                              help="select bundled bridge (default: %s)" % BRIDGE_SRC.parent.name.removeprefix("bigqmt_"))
+    bridge_group.add_argument("--bridge-src", type=Path,
                         help="use another bridge src directory, e.g. a Named Pipe-capable checkout")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="check local setup without connecting")
@@ -26,6 +32,8 @@ def main(argv=None):
         parser.error("strategy arguments cannot be combined with --check or --probe")
 
     bridge_src = args.bridge_src.expanduser().resolve() if args.bridge_src else BRIDGE_SRC
+    if args.bridge:
+        bridge_src = ROOT / "integrations" / ("bigqmt_" + args.bridge) / "src"
     if not (bridge_src / "xtquant" / "__init__.py").is_file():
         parser.error("bridge src must contain xtquant/__init__.py: %s" % bridge_src)
     sys.path.insert(0, str(bridge_src))
@@ -35,13 +43,14 @@ def main(argv=None):
     if Path(xtquant.__file__).resolve().parent != bridge_src / "xtquant":
         parser.error("native xtquant is already loaded; start this entry in a fresh Python process")
 
-    if args.bridge_src:
+    launcher_src = ROOT / "integrations" / "bigqmt_pipe" / "src"
+    if bridge_src != launcher_src:
         # This helper belongs to QMT-expert; the selected upstream checkout
         # supplies the bridge and shim, but need not ship our strategy launcher.
         import bigqmt_signal_trader
         name = "bigqmt_signal_trader.external_strategy_launcher"
         spec = importlib.util.spec_from_file_location(
-            name, BRIDGE_SRC / "bigqmt_signal_trader" / "external_strategy_launcher.py")
+            name, launcher_src / "bigqmt_signal_trader" / "external_strategy_launcher.py")
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)

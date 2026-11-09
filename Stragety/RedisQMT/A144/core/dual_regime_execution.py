@@ -48,8 +48,8 @@ def exclusive_state(path):
             msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-def new_state(account, capital):
-    return dict(schema=1, strategy='A144V12', account=str(account), initial_cash=capital,
+def new_state(account, capital, strategy='A144V12'):
+    return dict(schema=1, strategy=strategy, account=str(account), initial_cash=capital,
                 cash=capital, positions={}, orders={}, parents={}, counts={}, cooldowns={},
                 fills=[], trades=[], last_signal='', day='')
 
@@ -104,7 +104,7 @@ class Journal:
         matches = {}
         for item in orders:
             remark = item.order_remark
-            if remark.startswith('A144V12-') and remark not in self.state['orders']:
+            if remark.startswith(self.state['strategy'] + '-') and remark not in self.state['orders']:
                 raise RuntimeError('Broker has an order absent from this checkpoint: ' + remark)
             if remark in self.state['orders']:
                 if remark in matches:
@@ -206,9 +206,10 @@ class Journal:
 
 
 class RedisBroker:
-    def __init__(self, trader, account):
+    def __init__(self, trader, account, strategy='A144V12'):
         self.trader = trader
         self.account = account
+        self.strategy = strategy
 
     def orders(self):
         return self.trader.query_stock_orders(self.account, strategy_name='')
@@ -216,7 +217,7 @@ class RedisBroker:
     def submit(self, order):
         rows = self.trader.order_stock_batch(self.account, [dict(stock_code=order['code'],
             order_type=23 if order['side'] == 'BUY' else 24, order_volume=order['quantity'],
-            price_type=11, price=order['limit'], strategy_name='A144V12',
+            price_type=11, price=order['limit'], strategy_name=self.strategy,
             order_remark=order['remark'], require_idempotency_check=True)], batch_id=order['key'])
         if not isinstance(rows, list) or len(rows) != 1 or not rows[0].get('accepted'):
             raise RuntimeError('Bridge did not confirm idempotent submission: ' + str(rows))

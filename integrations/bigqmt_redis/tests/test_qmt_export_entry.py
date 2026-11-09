@@ -17,11 +17,34 @@ from bigqmt_signal_trader import external_strategy_launcher as launcher
 from bigqmt_signal_trader import xtquant_compat as compat
 
 
+@pytest.mark.parametrize("bridge", [None, "pipe", "redis"])
+def test_bridge_shortcut_selects_bundled_directory(tmp_path, monkeypatch, bridge):
+    selected = tmp_path / "integrations" / ("bigqmt_" + (bridge or "pipe")) / "src"
+    (selected / "xtquant").mkdir(parents=True)
+    (selected / "xtquant/__init__.py").touch()
+    monkeypatch.setattr(entry, "ROOT", tmp_path)
+    monkeypatch.setattr(entry, "BRIDGE_SRC", tmp_path / "integrations/bigqmt_pipe/src")
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    # Stop at the SDK guard, before importing any client or connecting.
+    monkeypatch.setitem(sys.modules, "xtquant", mock.Mock(__file__=str(tmp_path / "native/xtquant/__init__.py")))
+    args = ["--check"] if bridge is None else ["--bridge", bridge, "--check"]
+    with pytest.raises(SystemExit) as exc:
+        entry.main(args)
+    assert exc.value.code == 2
+    assert sys.path[0] == str(selected)
+
+
+def test_bridge_shortcut_conflicts_with_custom_source():
+    with pytest.raises(SystemExit) as exc:
+        entry.main(["--bridge", "redis", "--bridge-src", "custom", "--check"])
+    assert exc.value.code == 2
+
+
 def test_alternate_bridge_launches_with_its_own_shim_and_config(tmp_path):
     bridge = tmp_path / "bridge"
     bridge.mkdir()
     for package in ("bigqmt_signal_trader", "xtquant"):
-        shutil.copytree(ROOT / "integrations/bigqmt/src" / package,
+        shutil.copytree(ROOT / "integrations/bigqmt_pipe/src" / package,
                         bridge / package, ignore=shutil.ignore_patterns("__pycache__"))
     (bridge / "bigqmt_signal_trader/external_strategy_launcher.py").unlink()
     (bridge / "bigqmt_signal_trader_client_config.py").write_text(
@@ -55,7 +78,8 @@ def strategy(tmp_path):
 
 
 @pytest.fixture
-def config():
+def config(monkeypatch):
+    monkeypatch.setattr(entry, "BRIDGE_SRC", ROOT / "integrations/bigqmt_pipe/src")
     with mock.patch.object(compat, "load_client_config", return_value={
         "account_id": "test-account", "redis_config": {"transport": "zmq"},
     }):
@@ -130,7 +154,7 @@ def test_entry_can_run_from_another_working_directory(tmp_path):
 
 def test_template_pair_matches_and_disables_orders():
     import runpy
-    src = entry.BRIDGE_SRC
+    src = ROOT / "integrations/bigqmt_pipe/src"
     client = runpy.run_path(str(src / "bigqmt_signal_trader_client_config.example.py"))
     server = runpy.run_path(str(src / "bigqmt_signal_trader_local_config.example.py"))
     assert client["BIGQMT_ACCOUNT_ID"] == server["BIGQMT_ACCOUNT_ID"]

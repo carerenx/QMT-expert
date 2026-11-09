@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# A144 v12：中证500领涨主策略 + 七ETF弱市第二策略（大QMT Named Pipe）
+# A144 v12：中证500领涨主策略 + 七ETF弱市第二策略（大QMT桥接）
 #
-# 运行：在项目根目录使用外部Python 3.10+，保持QMT管道桥接模型运行。
+# 运行：在项目根目录使用外部Python 3.10+；桥接由统一启动器选择，两端配置须匹配。
 # 检查（不下单）：
-#   python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode check --capital 90000
+#   python run_bigqmt.py --bridge redis --strategy Stragety/RedisQMT/A144/A144_v12_DualRegimePortfolio.py --mode check --capital 90000
 # 实盘（会提交买卖及撤单）：
-#   python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode live --capital 90000
+#   python run_bigqmt.py --bridge redis --strategy Stragety/RedisQMT/A144/A144_v12_DualRegimePortfolio.py --mode live --capital 90000
+# 本机管道将启动器的--bridge redis改为--bridge pipe；策略不选择传输。
 # 90000仅为示例，实盘须改为不超过实际可用现金的投入；已有账本不会被--capital重置。
 # 成分文件默认自动准备，无需--universe。重启执行原live命令，保留同一state账本。
 #

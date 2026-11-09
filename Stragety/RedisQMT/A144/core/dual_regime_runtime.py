@@ -23,7 +23,6 @@ from .csi500_membership import ensure as ensure_membership
 from .dual_regime_report import daily_report, execution_report, minute_report
 
 
-ROOT = Path(__file__).resolve().parents[4]
 TIMES = list(pd.date_range('2000-01-01 09:31', '2000-01-01 11:30', freq='min').strftime('%H%M%S'))
 TIMES += list(pd.date_range('2000-01-01 13:01', '2000-01-01 15:00', freq='min').strftime('%H%M%S'))
 
@@ -339,7 +338,7 @@ def build_intents(policy, market, journal, broker_positions, broker_cash, stamp,
                 available -= quantity * limit + fee(quantity * limit, side, date, sleeve)
         if quantity <= 0:
             continue
-        key = f'A144V12-{signal}-{code[:6]}-{side[0]}'
+        key = f'{policy.STRATEGY}-{signal}-{code[:6]}-{side[0]}'
         intents.append(dict(key=key, code=code, sleeve=sleeve, side=side, quantity=int(quantity),
             limit=limit, date=date, signal=signal, execution_stamp=stamp))
     return intents
@@ -351,44 +350,40 @@ def run(policy, argv=None):
     default_universe = Path(policy.__file__).parent / 'state/csi500_membership.json'
     parser.add_argument('--universe', type=Path, default=default_universe,
                         help='dated CSI500 membership JSON; missing file is prepared from official sources')
-    parser.add_argument('--state', type=Path, default=Path(policy.__file__).parent / 'state/dual_regime_v12.json')
+    version = policy.STRATEGY.removeprefix('A144').lower()
+    parser.add_argument('--state', type=Path, default=Path(policy.__file__).parent / f'state/dual_regime_{version}.json')
     parser.add_argument('--capital', type=float, default=1e6, help='dedicated initial budget, only on first start')
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
     if not math.isfinite(args.capital) or args.capital <= 0:
         parser.error('capital must be finite and positive')
-    bridge_src = ROOT / 'integrations/bigqmt_pipe/src'
-    sys.path.insert(0, str(bridge_src))
-    import xtquant
-    if Path(xtquant.__file__).resolve().parent != bridge_src / 'xtquant':
-        raise RuntimeError('Expected project BigQMT shim; native SDK already imported')
     from bigqmt_signal_trader.xtquant_compat import StockAccount, configure, load_client_config
     from Stragety.RedisQMT.A144.config import ACCOUNT
     config = load_client_config()
-    if str(config.get('account_id')) != ACCOUNT or config.get('redis_config', {}).get('transport', 'redis') != 'pipe':
-        raise RuntimeError('Expected configured strategy account over Named Pipe transport')
+    if str(config.get('account_id')) != ACCOUNT:
+        raise RuntimeError('Bridge account does not match strategy account')
     account_lock = Path(policy.__file__).parent / 'state' / f'{policy.STRATEGY}_{ACCOUNT}'
     with exclusive_state(account_lock):
         trader, xtdata = configure(account_id=ACCOUNT, timeout_seconds=30)
         ping = trader.client.call('ping')
         if not isinstance(ping, dict) or not ping.get('pong') or str(ping.get('account_id')) != ACCOUNT:
-            raise RuntimeError('Named Pipe QMT ping/account validation failed')
-        _log('[Bridge] transport=pipe; local integration=bigqmt_pipe; account confirmed')
+            raise RuntimeError('QMT bridge ping/account validation failed')
+        _log('[Bridge] account confirmed')
         auto_universe = args.universe.resolve() == default_universe.resolve()
         today = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d')
         _log(f'[Universe] checking {args.universe}; missing/default-expired file is prepared from official CSI sources')
         ensure_membership(args.universe, xtdata, today, policy.PRIMARY_BREADTH_LOOKBACK,
                           auto_refresh=auto_universe)
         account = StockAccount(ACCOUNT)
-        broker = RedisBroker(trader, account)
+        broker = RedisBroker(trader, account, policy.STRATEGY)
         if not args.state.exists():
             initial_available = broker.snapshot()[0]
             if args.capital > initial_available:
                 if args.mode == 'live':
                     raise RuntimeError('Initial dedicated capital exceeds actual available cash; set --capital explicitly')
                 _log('[Check] requested capital exceeds actual available cash; LIVE will be blocked; no budget was changed')
-        state = json.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else new_state(ACCOUNT, args.capital)
+        state = json.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else new_state(ACCOUNT, args.capital, policy.STRATEGY)
         if state['schema'] != 1 or state['account'] != ACCOUNT or state['strategy'] != policy.STRATEGY:
             raise RuntimeError('Checkpoint schema/account/strategy mismatch')
         # Never silently continue an existing position with edited strategy code.

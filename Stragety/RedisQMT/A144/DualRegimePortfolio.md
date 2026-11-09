@@ -1,9 +1,14 @@
 # A144 v12 主策略与弱市第二策略
 
-2026-11-02：直接启动本策略已改用项目内 `integrations/bigqmt_pipe/src`，客户端配置
-必须为 `transport=pipe`，不再连接旧 Redis 集成。命令保持不变；QMT 中须持续运行
-`PIPE_ASCII_ALL_IN_ONE` 模型。当前服务端下单开关关闭，`check` 不发单，不能据此认定
-`live` 已可交易。修改了运行源码，已有账本仍须通过原有策略哈希核对，不自动迁移或重置。
+2026-11-04：桥接选择统一交给 `run_bigqmt.py`，策略不再固定兼容层目录或传输类型。
+启动器使用 `--bridge redis` 加载 `integrations/bigqmt_redis/src` 及其客户端配置，
+使用 `--bridge pipe` 加载本机管道集成；省略时使用启动器的 `BRIDGE_SRC` 默认值（当前为 Redis）。Redis 可桥接另一台电脑，
+客户端地址、端口、数据库、认证及账号须与远程 QMT 桥接一致；远程须运行 Redis 服务端模型。
+Pipe 仍要求同一台 Windows 电脑运行 `PIPE_ASCII_ALL_IN_ONE` 模型。
+`--mode check` 会连接并查询 QMT，但不下单；启动器 `--check` 仅检查本地配置。
+Redis 兼容层支持策略使用的 `use_formula=False`，映射为旧接口的 `bypass_formula=True`，
+保持行情经过桥接 RPC；策略无需识别兼容层版本。
+修改了运行源码，已有账本仍须通过原有策略哈希核对，不自动迁移或重置。
 
 入口：[A144_v12_DualRegimePortfolio.py](A144_v12_DualRegimePortfolio.py)。用户于2026-10-16接受当前研究候选，要求实施自动交易并支持策略中断后重启。该决定不改变既有回测数据，也不表示已获得独立样本验证。
 
@@ -25,7 +30,7 @@
 
 ## 启动
 
-使用外部Python 3.10或更新版本及项目现有pandas/Redis桥接依赖。QMT内置Python 3.6.8不能运行本入口。QMT桥接服务应正常启动；策略强制检查Redis传输、账户匹配、桥接ping及项目xtquant兼容层。行情失败立即停止，不切换其他数据源，不自动补下载旧分钟数据。
+使用外部Python 3.10或更新版本及项目现有pandas/桥接依赖。QMT内置Python 3.6.8不能运行本入口。QMT桥接服务应正常启动；启动器检查兼容层路径、客户端账号及依赖，策略检查账户匹配与桥接ping。行情失败立即停止，不切换其他数据源，不自动补下载旧分钟数据。
 
 2026-10-19起，入口默认使用本目录 `state/csi500_membership.json`，不再要求手工填写 `--universe`。确认Redis QMT连通后，文件缺失时自动获取中证指数官方成分表，并查询调整公告、按生效交易日重建最近至少6个完成交易日和当日名单；默认文件过期时自动刷新。当前官方名单只用作带日期的锚点，不倒填成历史名单。原始文件、公告响应和SHA256保存在 `state/membership_sources/`。
 
@@ -49,9 +54,9 @@
 自动准备查询窗口起点前45日以来的官方公告，核验分页及相关调整；当前支持官方调入/调出xlsx格式。若遇到相关公告无法确定生效日期、附件格式不支持、当前锚点过期或调整链冲突，则保留旧文件并停止，不会生成猜测名单；这些情况仍须导入核实后的文件。自动下载与格式检查不表示公告搜索范围外不存在遗漏。
 
 ```powershell
-python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode check --capital 90000
+python run_bigqmt.py --bridge redis --strategy Stragety/RedisQMT/A144/A144_v12_DualRegimePortfolio.py --mode check --capital 90000
 
-python .\Stragety\RedisQMT\A144\A144_v12_DualRegimePortfolio.py --mode live --capital 90000
+python run_bigqmt.py --bridge redis --strategy Stragety/RedisQMT/A144/A144_v12_DualRegimePortfolio.py --mode live --capital 90000
 ```
 
 `check`查询连接、账户、已有订单、状态及当日数据，不发买卖或撤单；允许准备/刷新成分缓存，首次check不创建交易资金账本。资金不足时输出警告并继续行情检查，方便区分文件/行情问题与资金问题。已有账本的成交核对仍会更新其确认进度。`live`持续轮询并执行买卖、撤单，首次专用预算超过实际可用现金仍会拒绝启动。示例9万元不是对你账户可投入金额的判断；默认预算100万元。已有状态恢复时继续原账本，`--capital`不会充值或重置它。本次开发未启动实盘。
