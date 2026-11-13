@@ -5,13 +5,20 @@ core/config.py — 策略参数常量 + 时间工具函数
 所有可调参数集中管理。工具函数纯计算, 无副作用。
 """
 import time as _time
+from pathlib import Path
 
 from matplotlib.pylab import cond
 
 # ============================================================================
 # 标的 & 账户
 # ============================================================================
-ACCOUNT    = '8890145315'
+# 与 Pipe 客户端共用；更换账号后须重启相关 Python 策略。
+_account_lines = (Path(__file__).resolve().parents[3] / "trading_account.txt").read_text(encoding="utf-8-sig").splitlines()
+_accounts = [line.split("#", 1)[0].strip() for line in _account_lines]
+_accounts = [account for account in _accounts if account]
+if len(_accounts) != 1 or not _accounts[0].isascii() or not _accounts[0].isdigit():
+    raise ValueError("trading_account.txt must contain exactly one uncommented numeric account ID")
+ACCOUNT = _accounts[0]
 STOCK_CODE     = '601869'
 STOCK_NAME     = '长飞光纤'
 STOCK_QMT      = f'{STOCK_CODE}.SH'

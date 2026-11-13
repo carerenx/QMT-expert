@@ -8,8 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 # 桥接方式的调整默认路径，redis 或者 pipe
-# BRIDGE_SRC = ROOT / "integrations" / "bigqmt_pipe" / "src"
-BRIDGE_SRC = ROOT / "integrations" / "bigqmt_redis" / "src"
+BRIDGE_SRC = ROOT / "integrations" / "bigqmt_pipe" / "src"
+# BRIDGE_SRC = ROOT / "integrations" / "bigqmt_redis" / "src"
 
 DEFAULT_STRATEGY = ROOT / "Stragety" / "MiniQMT_Stragety" / "DayT" / "DayTradeing_v41_stragety_miniqmt.py"
 
