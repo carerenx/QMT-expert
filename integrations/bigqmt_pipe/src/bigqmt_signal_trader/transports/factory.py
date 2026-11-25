@@ -8,7 +8,6 @@ driver) are imported lazily; a missing dependency surfaces as a clear
 """
 
 from .base import RpcTransport
-from .redis_transport import RedisTransport
 
 
 KNOWN_TRANSPORTS = ("redis", "zmq", "mysql", "shm", "pipe")
@@ -91,6 +90,8 @@ def build_transport(
 
 
 def _build_redis(config, account_id, print_prefix):
+    from .redis_transport import RedisTransport
+
     redis_client = config.get("redis_client")
     if redis_client is None:
         from ..adapters.redis_common import build_redis_client

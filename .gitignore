@@ -22,6 +22,28 @@ tests/
 !tests/
 tests/*
 !tests/test_dayt_v0565_epoch_peak_multivote.py
+!tests/test_dayt_seed_position.py
+!tests/test_dayt_buyback_tightening.py
+!tests/test_dayt_regime_minute_lab.py
+!tests/test_ma5_ma20_seed_selection.py
+!tests/test_dayt_connector_callback.py
+!tests/test_pipe_compat_connection.py
+
+# Keep offline regime research reproducible without adding generated caches.
+!backtest/
+backtest/*
+!backtest/redis_minute_audit.py
+!backtest/research_dayt_regime_lab.py
+!backtest/audit_dayt_regime_lab.py
+!backtest/summarize_dayt_regime_lab.py
+!backtest/research_dayt_cost_space.py
+!backtest/audit_dayt_cost_space.py
+!backtest/research_dayt_empirical_edge.py
+!tests/test_dayt_empirical_edge_lab.py
+!tests/test_dayt_sell_confirmation_line.py
+!tests/test_dayt_etf_adaptation.py
+!tests/test_dayt_net_risk.py
+!tests/test_dayt_cost_space_lab.py
 
 /127.0.0.1
 
@@ -32,3 +54,21 @@ analysis/panel_*/raw/
 
 
 /output
+
+# Local account selection and bridge settings (copy/edit the templates).
+/trading_account.txt
+/integrations/**/src/bigqmt_signal_trader_client_config.py
+
+# Runtime checkpoints and process locks must never be shared between machines.
+/Stragety/MiniQMT_Stragety/DayT/state/
+.pytest_cache/
+
+# Rebuildable research data; keep source scripts and concise reports visible.
+/analysis/**/*.csv.gz
+/analysis/**/*.pkl
+/analysis/**/*.pkl.gz
+/analysis/**/ledgers/
+/analysis/**/source_snapshot/
+
+# Preserve the small, synthetic pre-fix evidence used by the review probe.
+!/analysis/dayt_adversarial_review_20261124/evidence.json

@@ -6856,7 +6856,23 @@ class BigQmtXtTrader:
         return _as_compat_row(rows)
 
     def query_account_infos(self, account=None):
-        return self._query_account_list(account, "query_account_infos")
+        rows = self._query_account_list(account, "query_account_infos")
+        infos = []
+        for row in rows:
+            # Big QMT relays raw ACCOUNT rows, whereas MiniQMT callers expect
+            # XtAccountInfo.account_id/account_type. Keep the raw fields too.
+            info = dict(row)
+            account_id = info.get("account_id") or info.get("m_strAccountID") or info.get("id")
+            if not account_id:
+                raise ValueError("query_account_infos returned a row without an account identifier")
+            info["account_id"] = str(account_id)
+            info["account_type"] = (
+                _account_type_code(info.get("account_type"))
+                or _account_type_code(info.get("m_nAccountType"))
+                or self._account_type_value()
+            )
+            infos.append(_as_compat_row(info))
+        return infos
 
     def query_account_status(self, account=None):
         return self._query_account_list(account, "query_account_status")

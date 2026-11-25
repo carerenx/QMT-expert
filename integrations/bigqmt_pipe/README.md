@@ -6,10 +6,14 @@
 
 ## 文件
 
+2026-11-15：修复客户端事件线程与 RPC 工厂的并发冷导入死锁，并为 `query_account_infos()` 补齐 MiniQMT 的 `account_id`、`account_type` 属性。4 项离线回归通过，实际只读 start/connect/账号查询通过；服务返回 `allow_order_methods=False`。重启外部 Python 后使用修复，无需重启当前 QMT 服务；本地部署快照已重新生成，未部署到运行中的 QMT。
+
 - `src/bigqmt_signal_trader/`：桥接包，包含 RPC 管道与独立事件管道。
 - `src/xtquant/`：供旧策略导入的兼容层，仅由启动器放到导入路径前面。
 - `src/bigqmt_signal_trader_client_config.py`：已填写账号的本机私有配置，Git 忽略。
 - `deploy/PIPE_ASCII_ALL_IN_ONE.py`：已填写账号、下单关闭的 QMT 服务端源码快照，Git 忽略。
+- `build_deploy.py`：在根目录执行 `python integrations/bigqmt_pipe/build_deploy.py`，从本目录源码和统一账号文件重新生成上述快照；生成时恢复模板的只读配置，不连接 QMT。
+- `src/bigqmt_signal_trader_strategy.py`、`src/bigqmt_signal_trader_redis_rpc_runtime.py`：生成单文件所需的顶层入口。2026-11-13 从 PyPI `xtquant-big-convert==0.3.78` wheel 补齐，许可证见 `LICENSE`；与本目录桥接版本一致。
 - `UPSTREAM.json`、`LICENSE`：来源、复制时校验值与许可证。
 
 客户端配置使用 `transport=pipe`、`redis_enabled=False`、`pipe_name=bigqmt_rpc`，

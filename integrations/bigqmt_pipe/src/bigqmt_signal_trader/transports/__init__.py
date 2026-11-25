@@ -11,6 +11,13 @@ See :mod:`~bigqmt_signal_trader.transports.factory`.
 """
 
 from .base import RpcTransport, TransportError, TransportTimeout
-from .factory import build_transport
+
+
+def build_transport(name, config=None, account_id="", print_prefix="[bigqmt_rpc]"):
+    # A cold factory import and a push-channel import can happen on different
+    # threads. Do not make package initialization wait on the factory's lock.
+    from .factory import build_transport as build
+
+    return build(name, config, account_id, print_prefix)
 
 __all__ = ["RpcTransport", "TransportError", "TransportTimeout", "build_transport"]

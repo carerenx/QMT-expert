@@ -3,6 +3,7 @@
 import math
 import numpy as np
 from .indicators_np import atr
+from .instrument_rules import round_price, price_decimals
 
 # 仅使用最近已完成日线；窗口越长越稳定，越短越灵敏。
 REENTRY_HISTORY_DAYS = 80
@@ -15,7 +16,8 @@ REENTRY_MIN_HISTORY = 30
 REENTRY_PRICE_TICK = 0.01
 
 
-def calculate_atr_reentry(base, opens, highs, lows, closes):
+def calculate_atr_reentry(base, opens, highs, lows, closes, price_tick=REENTRY_PRICE_TICK):
+    price_decimals(price_tick)  # Validate an explicitly supplied stock/fund grid.
     n = min(REENTRY_HISTORY_DAYS, len(opens), len(highs), len(lows), len(closes))
     if not math.isfinite(base) or base <= 0 or n < REENTRY_MIN_HISTORY:
         return None
@@ -38,10 +40,8 @@ def calculate_atr_reentry(base, opens, highs, lows, closes):
     up = float(np.quantile(ups, REENTRY_QUANTILE))
     down = float(np.quantile(downs, REENTRY_QUANTILE))
     # 至少离基准一个价位，避免历史分位为0时立即重新入场。
-    sell = round(math.ceil((base + max(base * fraction * up, REENTRY_PRICE_TICK)) /
-                           REENTRY_PRICE_TICK - 1e-9) * REENTRY_PRICE_TICK, 2)
-    buy = round(math.floor((base - max(base * fraction * down, REENTRY_PRICE_TICK)) /
-                          REENTRY_PRICE_TICK + 1e-9) * REENTRY_PRICE_TICK, 2)
+    sell = round_price(base + max(base * fraction * up, price_tick), price_tick, 'ceil')
+    buy = round_price(base - max(base * fraction * down, price_tick), price_tick, 'floor')
     if buy <= 0:
         return None
     return dict(sell_trigger=sell, buy_trigger=buy, atr_pct=fraction,

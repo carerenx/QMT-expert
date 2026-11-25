@@ -8,6 +8,7 @@ compute_signal()         : 每日信号综合计算
 from . import config as cfg
 from .indicators import sma, up_streak, daily_range_ma
 from .indicators_np import atr, rsi
+from .instrument_rules import round_price
 
 
 def calc_dynamic_sell_mult(trend, atr_pct, atr_ratio, vol_ratio, rsi_val, up_streak_val):
@@ -95,7 +96,7 @@ def calc_dynamic_sell_mult(trend, atr_pct, atr_ratio, vol_ratio, rsi_val, up_str
 
 
 def compute_signal(opens, highs, lows, closes, volumes, yesterday_close=None,
-                   today_open=None):
+                   today_open=None, price_tick=0.01):
     """
     计算当日信号。
 
@@ -103,6 +104,7 @@ def compute_signal(opens, highs, lows, closes, volumes, yesterday_close=None,
         opens, highs, lows, closes, volumes: list[float], 日线数据 (最后一条是今日/昨日)
         yesterday_close: float | None, 昨收(真实价, 来自实时tick lastClose)。
             用于触发价基准, 与今开同源; 缺省时回退到日线 closes[-1](前复权)。
+        price_tick: 报价网格；默认股票0.01，基金由调用方显式传0.001。
 
     Returns:
         dict | None: 信号字典, 数据不足时返回 None
@@ -166,10 +168,10 @@ def compute_signal(opens, highs, lows, closes, volumes, yesterday_close=None,
     sell_trigger_raw = ref * (1.0 + curr_atr_pct * sell_mult * cfg.SELL_TRIGGER_SCALE)
 
     if cfg.DAILY_RANGE_CAP_ENABLED and sell_trigger_raw > max_trigger_by_range:
-        sell_trigger = round(max_trigger_by_range, 2)
+        sell_trigger = round_price(max_trigger_by_range, price_tick)
         range_capped = True
     else:
-        sell_trigger = round(sell_trigger_raw, 2)
+        sell_trigger = round_price(sell_trigger_raw, price_tick)
 
     do_short = True
     reason = ''
@@ -189,7 +191,7 @@ def compute_signal(opens, highs, lows, closes, volumes, yesterday_close=None,
         'blocked_reason': reason, 
         'trend': trend,
         'sell_trigger': sell_trigger, 
-        'sell_trigger_raw': round(sell_trigger_raw, 2),
+        'sell_trigger_raw': round_price(sell_trigger_raw, price_tick),
         'range_capped': range_capped, 
         'daily_range_ma10': daily_range_ma10,
         'open_price': co, 

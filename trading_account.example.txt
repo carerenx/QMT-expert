@@ -1,0 +1,4 @@
+# Copy to trading_account.txt and enter exactly one numeric broker account ID.
+# Keep the active account file local; blank lines and # comments are supported.
+# Example only (replace before use):
+# 1234567890

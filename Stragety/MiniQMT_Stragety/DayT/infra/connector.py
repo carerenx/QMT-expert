@@ -326,7 +326,10 @@ class MiniQMTConnector:
 
         self.callback = _Callback(self)
         self.xttrader = _xttrader
-        self.trader = _xttrader.XtQuantTrader(path, session, self.callback)
+        # Pipe's third constructor argument is account_id, not a callback.
+        # Separate registration works with both native MiniQMT and the bridge.
+        self.trader = _xttrader.XtQuantTrader(path, session)
+        self.trader.register_callback(self.callback)
 
         try:
             self.trader.start()
@@ -784,8 +787,12 @@ class MiniQMTConnector:
         # ★ 记录下单快照, 供委托/成交推送回调在价格/数量字段为 0 时回退显示真实值
         self.last_order_info = (dir_name, order_price, shares, stock_code)
 
-        display_price = 'PEER' if style_name == 'COMPETE' else (
-            'LATEST' if style_name == 'LATEST' else 'Y{:.2f}'.format(order_price))
+        if style_name == 'FIX':
+            from core.instrument_rules import rules_for_symbol
+            digits = rules_for_symbol(stock_code).price_decimals
+            display_price = 'Y{:.{}f}'.format(order_price, digits)
+        else:
+            display_price = 'PEER' if style_name == 'COMPETE' else 'LATEST'
         _log('  >>> 下单{}: {} x {}股 {} [{}]'.format(
             dir_name, display_price, shares, stock_code, style_name))
 
@@ -883,7 +890,10 @@ class MockPosition:
             self.m_strInstrumentID = xt_pos.stock_code.split('.')[0] if hasattr(xt_pos, 'stock_code') else ''
             self.m_nVolume = getattr(xt_pos, 'volume', 0)
             self.m_dOpenPrice = getattr(xt_pos, 'open_price', 0.0)
-            self.m_nCanUseVolume = getattr(xt_pos, 'can_use_volume', getattr(xt_pos, 'volume', 0))
+            # An absent sellable field is not permission to sell total holdings.
+            # The Pipe payload uses `available`; the SDK uses `can_use_volume`.
+            sellable = _pick(xt_pos, 'can_use_volume', 'available', default=0)
+            self.m_nCanUseVolume = max(0, int(sellable or 0))
         else:
             self.m_strInstrumentID = ''
             self.m_nVolume = 0

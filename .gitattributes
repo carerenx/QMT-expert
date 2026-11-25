@@ -1,0 +1,4 @@
+# Preserve the exact historical bytes referenced by the adversarial evidence.
+/analysis/dayt_adversarial_review_20261124/source_before_fix.py -text
+# Keep the reviewed strategy's SHA256 stable across Windows/Linux checkouts.
+/Stragety/MiniQMT_Stragety/DayT/DayT_v0628_NetCostRiskBudgetDayT.py text eol=lf

@@ -1,0 +1,64 @@
+{
+  "source_sha256": "e59e89a085047780531075831a65c2c0366c405cd9f82642649253f509666d0b",
+  "defects_reproduced": 5,
+  "evidence": {
+    "stale_tick": {
+      "old_tick_age_seconds": 14400,
+      "old_tick_accepted": true,
+      "future_tick_accepted": true,
+      "submission_path_entered": true,
+      "control_previous_date_blocked": true
+    },
+    "post_fill_failure": {
+      "broker_reports_filled": true,
+      "book_already_recorded": true,
+      "failed_to_return_fill": true,
+      "duplicate_accounting_retries": true,
+      "cancelled_already_filled_order": [
+        123
+      ],
+      "account_uncertain": true,
+      "log": [
+        "[T-NET-EST] realized-gross=0.00 inventory=0.00 fees-est=15.20 incremental-vs-hold-est=-15.20 delta-shares=-100; own T fills this process only, dividends/outside trades excluded; not broker net PnL",
+        "[EXECUTION-WAIT] order=123 invalid literal for int() with base 10: 'malformed'",
+        "[EXECUTION-WAIT] order=123 order already accounted: 123"
+      ]
+    },
+    "inconsistent_success_status": {
+      "order_status": 56,
+      "traded_volume": 0,
+      "attempts": 2,
+      "account_uncertain": false,
+      "state": "IDLE",
+      "count_after_failures": 0
+    },
+    "fund_odd_remainder": {
+      "original_partial_sell": 150,
+      "buyback_submitted": 100,
+      "remaining": 50,
+      "next_buyback_blocked": true,
+      "log": [
+        "[ORDER-REV-T buyback()] Y1.730 × 100 sh",
+        "[T-NET-EST] realized-gross=2.00 inventory=1.00 fees-est=10.00 incremental-vs-hold-est=-7.00 delta-shares=-50; own T fills this process only, dividends/outside trades excluded; not broker net PnL",
+        "[EXECUTION] order=123 REV-T buyback() qty=100 avg=Y1.7300 realized-gross=Y2.000 fees=NOT-INCLUDED",
+        "[NEXT-PLAN] REV-T buyback 50 sh | sold Y1.750 | touch <= Y1.715 (-2.00%) then rebound >= 0.10% from low",
+        "[NEXT-PLAN] when elapsed continuous-session seconds > 30, if price > Y1.741, activate and retain touch <= Y1.729 (-1.20%) for this cycle | no end-of-day forced close; unclosed legs remain open",
+        "[REV-T buyback() SKIP] 现金 不足: planned 50 actual 0",
+        "[Buyback -FAIL]"
+      ]
+    },
+    "cash_fee_boundary": {
+      "cash": 175.2,
+      "price": 1.75,
+      "allowed": 100,
+      "own_fee_model_cost": 180.0,
+      "insufficient_under_configured_fee_model": true,
+      "submission_path_entered": true,
+      "scope": "closing buyback; no new-leg cost check"
+    },
+    "control": {
+      "healthy_confirmed_fill_returns": true
+    }
+  },
+  "scope": "Offline actual methods with injected broker snapshots; no live connection/order."
+}
