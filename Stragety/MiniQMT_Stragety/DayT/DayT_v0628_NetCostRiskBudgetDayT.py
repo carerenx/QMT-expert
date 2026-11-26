@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""v0628: net-cost admission and entry risk budgets for per-holding DayT.
+"""v0628: net-cost admission and confirmed-fill accounting for per-holding DayT.
 
 Check only (no connection):
 python run_bigqmt.py --bridge pipe --strategy Stragety/MiniQMT_Stragety/DayT/DayT_v0628_NetCostRiskBudgetDayT.py --check
@@ -13,15 +13,15 @@ completed ATR14/close >=7%; 09:45-14:00 excluding lunch, >=95% valid
 input coverage. Cash campaign cap 50%, per-symbol 20%; seed fills join T+1.
 REV-T: final confirmation = ceil_tick(base ATR line*1.0015), then peak
 pullback >=0.20% and >=2 subsequent distinct quote timestamps. First sale 60%, later
-100%, reduced by entry risk budget; actual sell fills lock buyback targets.
+100%, subject to sellable holdings; actual sell fills lock buyback targets.
 Buyback: ATR*.15 bull/sideways, *.20 bear; touch plus .10% rebound.
 After >30 continuous-session seconds, price > sell*.995 tightens the
 retracement to 60% of its locked distance. Lunch/out of hours do not count.
 FWD-T: open-3%/observed-price-2% trailing floor, .10% bounce; actual buy
 +1.2% sell watch followed by .10% peak pullback. Stock/fund grids .01/.001.
 New legs: target space >=1.5*stress round-trip costs +0.2% notional;
-size fits 0.5% equity modeled risk using 1 adverse ATR plus stress costs.
-No new stop-loss/timeout exit. Modeled budget is not a maximum loss.
+size follows existing position/cash limits; no equity/ATR risk-budget cap.
+No new stop-loss/timeout exit.
 Own-fill marked attribution includes ESTIMATED fees, not broker net PnL.
 Quotes: age <=10s, future skew <=2s; final recheck, bounded FIX orders.
 Confirmed fills commit once; inconsistent reports freeze new submissions.
@@ -102,7 +102,7 @@ from core import config as cfg
 from core.signals import compute_signal
 from core.t_position_size import calculate_t_shares
 from core.execution_book import ExecutionBook
-from core.dayt_net_risk import FeeEstimate, NetAttribution, trading_seconds_between, risk_capped_shares, net_space_check
+from core.dayt_net_risk import FeeEstimate, NetAttribution, trading_seconds_between, net_space_check
 from core.dayt_seed_position import SeedPolicy, SeedPositionManager
 from core.ma5_ma20_seed_selection import (
     SeedSelectionWorker, calculate_ma_candidate, is_main_board, _completed_rows,
@@ -135,8 +135,6 @@ TERMINAL_ORDER_STATUSES = (53, 54, 56, 57)
 T_TARGET_VALUE = 40000.0
 T_POSITION_FRACTION = 0.40
 SYMBOL_LOT_OVERRIDES = {}
-T_RISK_BUDGET_FRACTION = 0.005
-T_RISK_ADVERSE_ATR = 1.0
 BUYBACK_TIGHTEN_TRADING_SECONDS = 30.0
 SEED_MINIMUM_COVERAGE = 0.95
 STOCK_FEES = FeeEstimate()
@@ -924,10 +922,6 @@ class StrategyRunner:
         return (REV_T_SELL_FRACTION if self.st.get('rev_t_sell_fills', 0) == 0
                 else 1.0)
 
-    def _account_equity(self):
-        account = get_trade_detail_data(ACCOUNT, 'STOCK', 'ACCOUNT')
-        return float(account[0].m_dBalance) if account else 0.0
-
     def _new_t_shares(self, price, side):
         capacity = self._paired_long_capacity(price)
         if side == 'SELL':
@@ -939,17 +933,7 @@ class StrategyRunner:
             cash = max(0.0, self._available_cash() - own_reserve)
             planned = calculate_t_shares(float(price), capacity['pairing_shares'],
                 self.trade_lot, T_TARGET_VALUE, T_POSITION_FRACTION, cash)
-        atr_pct = float((self.st.get('daily_signal') or {}).get('atr_pct', 0) or 0)
-        equity = self._account_equity()
-        capped = risk_capped_shares(planned, self.trade_lot, float(price), atr_pct,
-            equity, T_RISK_BUDGET_FRACTION, T_RISK_ADVERSE_ATR,
-            self.fee_estimate, side, self.instrument_rules.kind == 'FUND')
-        if capped < planned:
-            self._log('[RISK-SIZE] {} planned={} capped={} equity={:.2f} modeled-budget={:.2f} '
-                      'ATR={:.2%} adverse-ATR={}; no minimum-lot override'.format(
-                          side, planned, capped, equity, equity * T_RISK_BUDGET_FRACTION,
-                          atr_pct, T_RISK_ADVERSE_ATR))
-        return capped
+        return planned
 
     def _elapsed_cycle_seconds(self, now=None):
         if self._cycle_opened_at is None:
@@ -2964,9 +2948,8 @@ def main():
     set_logger(logger)
     try:
         source_path = os.path.abspath(__file__)
-        _log('[POLICY] entry-risk-budget={:.2%} adverse-ATR={}; fees=ESTIMATES; '
-             'no new stop-loss/timeout exits; cross-day cycle behavior unchanged'.format(
-                 T_RISK_BUDGET_FRACTION, T_RISK_ADVERSE_ATR))
+        _log('[POLICY] entry-risk-budget=REMOVED; position/cash/lot and net-cost checks retained; '
+             'fees=ESTIMATES; no new stop-loss/timeout exits; cross-day cycle behavior unchanged')
         _log('[SOURCE] path={} mtime={} sha256={}'.format(
             source_path,
             datetime.fromtimestamp(os.path.getmtime(source_path)).isoformat(),
